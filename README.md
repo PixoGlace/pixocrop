@@ -40,6 +40,28 @@ L'archive finale est placee dans `release/` et contient :
 - l'icone de l'application ;
 - `README-linux.txt` avec les commandes d'installation locale optionnelle.
 
+
+## CI/CD et releases GitHub
+
+Le workflow GitHub Actions construit les binaires Linux, Windows et macOS.
+
+- Sur `push` et `pull_request`, les binaires sont construits et disponibles comme artefacts de workflow.
+- Sur un tag `v*`, une Release GitHub est creee automatiquement avec les archives telechargeables par la vitrine.
+
+Exemple :
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Archives publiees :
+
+- `pixoCrop-linux-x86_64.tar.gz`
+- `pixoCrop-windows-x64.zip`
+- `pixoCrop-macos-arm64.zip`
+- `pixoCrop-macos-x86_64.zip`
+
 ## Site vitrine
 
 La documentation vitrine est dans `docs/`.
