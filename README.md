@@ -2,6 +2,8 @@
 
 Application Python avec interface graphique pour detecter un bordereau d'expedition dans un PDF, recadrer uniquement cette region, puis lancer l'impression via le lecteur PDF/systeme.
 
+Projet maintenu par PixoGlace.
+
 ## Installation developpement
 
 ```bash
@@ -37,4 +39,32 @@ L'archive finale est placee dans `release/` et contient :
 - un fichier `.desktop` ;
 - l'icone de l'application ;
 - `README-linux.txt` avec les commandes d'installation locale optionnelle.
-# pixocrop
+
+## Site vitrine
+
+La documentation vitrine est dans `docs/`.
+
+Pour la publier avec GitHub Pages :
+
+1. Ouvrir les parametres du depot GitHub.
+2. Aller dans `Pages`.
+3. Choisir la branche principale et le dossier `/docs`.
+4. Enregistrer.
+
+## Donation
+
+Si pixoCrop vous aide, vous pouvez soutenir le projet :
+
+[Buy Me a Coffee](https://www.buymeacoffee.com/pixoglace)
+
+## Licence
+
+pixoCrop est distribue sous licence GNU General Public License v3.0 (GPL-3.0).
+Voir [LICENSE](LICENSE).
+
+## Copyright et marques
+
+Copyright (C) 2026 PixoGlace. Voir [COPYRIGHT](COPYRIGHT).
+
+Les noms PixoGlace et PixoCrop, le logo, les icones et l'identite visuelle du
+projet restent reserves a PixoGlace. Voir [TRADEMARKS.md](TRADEMARKS.md).
