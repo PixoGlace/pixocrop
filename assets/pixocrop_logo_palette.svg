@@ -1,0 +1,476 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1600"
+   height="900"
+   viewBox="0 0 1600 900"
+   fill="none"
+   version="1.1"
+   id="svg28"
+   sodipodi:docname="pixocrop_logo_palette.svg"
+   inkscape:version="1.4.4 (1:1.4.4+202605061432+dcaf3e7d9e)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview28"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.69994888"
+     inkscape:cx="1602.9742"
+     inkscape:cy="620.75962"
+     inkscape:window-width="3383"
+     inkscape:window-height="1376"
+     inkscape:window-x="57"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg28" />
+  <defs
+     id="defs1">
+    <style
+       id="style1">
+      .word{font-family: Inter, Avenir, Helvetica, Arial, sans-serif;font-weight:800;letter-spacing:-5px}
+      .tag{font-family: Inter, Avenir, Helvetica, Arial, sans-serif;font-weight:500;letter-spacing:8px}
+      .pal{font-family: Inter, Avenir, Helvetica, Arial, sans-serif;font-weight:700}
+      .small{font-family: Inter, Avenir, Helvetica, Arial, sans-serif;font-weight:500}
+    </style>
+    <filter
+       id="softShadow"
+       x="-0.034782609"
+       y="-0.028571429"
+       width="1.0695652"
+       height="1.0571429">
+      <feDropShadow
+         dx="0"
+         dy="10"
+         stdDeviation="14"
+         flood-color="#000000"
+         flood-opacity="0.18" />
+    </filter>
+    <filter
+       id="softShadow-9"
+       x="0"
+       y="0"
+       width="1"
+       height="1">
+      <feDropShadow
+         dx="0"
+         dy="10"
+         stdDeviation="14"
+         flood-color="#000000"
+         flood-opacity="0.18" />
+    </filter>
+    <filter
+       id="softShadow-9-0"
+       x="-0.034782609"
+       y="-0.028571429"
+       width="1.0695652"
+       height="1.0571429">
+      <feDropShadow
+         dx="0"
+         dy="10"
+         stdDeviation="14"
+         flood-color="#000000"
+         flood-opacity="0.18" />
+    </filter>
+  </defs>
+  <!-- Background split -->
+  <!-- DARK VERSION -->
+  <g
+     id="g6"
+     inkscape:export-filename="title_dark.png"
+     inkscape:export-xdpi="300"
+     inkscape:export-ydpi="300">
+    <rect
+       width="1600"
+       height="430"
+       fill="#172b4d"
+       id="rect1"
+       x="2.2737368e-13"
+       y="0"
+       style="stroke-width:1"
+       inkscape:export-filename="title_dark.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <g
+       id="g34"
+       transform="translate(-164.78991,-0.91996946)"
+       inkscape:export-filename="title_dark.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g31">
+        <text
+           x="646"
+           y="238"
+           class="word"
+           font-size="145px"
+           fill="#ffffff"
+           id="text8">pixo</text>
+        <text
+           x="936"
+           y="238"
+           class="word"
+           font-size="145px"
+           fill="#14b8a6"
+           id="text9">Crop</text>
+      </g>
+      <g
+         id="g33"
+         transform="translate(-3.9150037)">
+        <rect
+           x="580"
+           y="310"
+           width="120"
+           height="4"
+           rx="2"
+           fill="#14b8a6"
+           id="rect9" />
+        <text
+           x="735"
+           y="325"
+           class="tag"
+           font-size="38px"
+           fill="#e5e7eb"
+           id="text10">Crop. Print. Done.</text>
+        <rect
+           x="1215"
+           y="310"
+           width="120"
+           height="4"
+           rx="2"
+           fill="#14b8a6"
+           id="rect10" />
+      </g>
+    </g>
+  </g>
+  <!-- LIGHT VERSION -->
+  <g
+     id="g7"
+     inkscape:export-filename="title_white.png"
+     inkscape:export-xdpi="300"
+     inkscape:export-ydpi="300">
+    <rect
+       y="430"
+       width="1600"
+       height="470"
+       fill="#ffffff"
+       id="rect2"
+       x="2.2737368e-13"
+       style="stroke-width:1" />
+    <g
+       id="g36"
+       transform="translate(-137.585,8.0804358)"
+       inkscape:export-filename="title_white.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g32">
+        <text
+           x="630"
+           y="663"
+           class="word"
+           font-size="145px"
+           fill="#172b4d"
+           id="text16">pixo</text>
+        <text
+           x="920"
+           y="663"
+           class="word"
+           font-size="145px"
+           fill="#14b8a6"
+           id="text17">Crop</text>
+      </g>
+      <g
+         id="g35"
+         transform="translate(-19.915004)">
+        <rect
+           x="580"
+           y="735"
+           width="120"
+           height="4"
+           rx="2"
+           fill="#14b8a6"
+           id="rect17" />
+        <text
+           x="735"
+           y="750"
+           class="tag"
+           font-size="38px"
+           fill="#6b7280"
+           id="text18">Crop. Print. Done.</text>
+        <rect
+           x="1215"
+           y="735"
+           width="120"
+           height="4"
+           rx="2"
+           fill="#14b8a6"
+           id="rect18" />
+      </g>
+    </g>
+  </g>
+  <!-- palette -->
+  <g
+     transform="translate(120,928)"
+     id="g28">
+    <rect
+       x="0"
+       y="0"
+       width="52"
+       height="52"
+       rx="8"
+       fill="#172b4d"
+       id="rect19" />
+    <text
+       x="70"
+       y="22"
+       class="pal"
+       font-size="22px"
+       fill="#172b4d"
+       id="text19">#172B4D</text>
+    <text
+       x="70"
+       y="48"
+       class="small"
+       font-size="18px"
+       fill="#6b7280"
+       id="text20">Navy</text>
+    <rect
+       x="310"
+       y="0"
+       width="52"
+       height="52"
+       rx="8"
+       fill="#14b8a6"
+       id="rect20" />
+    <text
+       x="380"
+       y="22"
+       class="pal"
+       font-size="22px"
+       fill="#172b4d"
+       id="text21">#14B8A6</text>
+    <text
+       x="380"
+       y="48"
+       class="small"
+       font-size="18px"
+       fill="#6b7280"
+       id="text22">Teal</text>
+    <rect
+       x="620"
+       y="0"
+       width="52"
+       height="52"
+       rx="8"
+       fill="#f59e0b"
+       id="rect22" />
+    <text
+       x="690"
+       y="22"
+       class="pal"
+       font-size="22px"
+       fill="#172b4d"
+       id="text23">#F59E0B</text>
+    <text
+       x="690"
+       y="48"
+       class="small"
+       font-size="18px"
+       fill="#6b7280"
+       id="text24">Amber</text>
+    <rect
+       x="930"
+       y="0"
+       width="52"
+       height="52"
+       rx="8"
+       fill="#6b7280"
+       id="rect24" />
+    <text
+       x="1000"
+       y="22"
+       class="pal"
+       font-size="22px"
+       fill="#172b4d"
+       id="text25">#6B7280</text>
+    <text
+       x="1000"
+       y="48"
+       class="small"
+       font-size="18px"
+       fill="#6b7280"
+       id="text26">Gray</text>
+    <rect
+       x="1240"
+       y="0"
+       width="52"
+       height="52"
+       rx="8"
+       fill="#e5e7eb"
+       stroke="#d1d5db"
+       id="rect26" />
+    <text
+       x="1310"
+       y="22"
+       class="pal"
+       font-size="22px"
+       fill="#172b4d"
+       id="text27">#E5E7EB</text>
+    <text
+       x="1310"
+       y="48"
+       class="small"
+       font-size="18px"
+       fill="#6b7280"
+       id="text28">Light gray</text>
+  </g>
+  <g
+     id="g5"
+     inkscape:export-filename="logo_white.png"
+     inkscape:export-xdpi="300"
+     inkscape:export-ydpi="300">
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:24.5669;stroke-linecap:square;paint-order:markers stroke fill"
+       id="rect3-7"
+       width="521.27679"
+       height="521.27679"
+       x="1625.4541"
+       y="563.05011"
+       rx="33.337467"
+       ry="33.337467" />
+    <g
+       id="g3"
+       transform="matrix(1.4167475,0,0,1.4167475,-787.69281,-300.68219)">
+      <path
+         style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 1770.4216,649.57552 158.1004,1.01023 7.5767,71.18033 72.7363,4.58664 -1.0102,211.13731 -237.9083,-0.50512 z"
+         id="path3" />
+      <g
+         id="g38"
+         transform="translate(1584.2194,180.36955)">
+        <path
+           d="m 348.79883,457.20782 82.83082,80.8121 -53.57887,3.23868 c -18,1.33333 -27.66667,-7 -29,-25 z"
+           fill="#6b7280"
+           opacity="0.25"
+           id="path12-2-9"
+           sodipodi:nodetypes="ccccc" />
+        <path
+           id="rect28-8"
+           style="color:#000000;fill:#172b4d;stroke-linecap:round;stroke-linejoin:round;-inkscape-stroke:none"
+           d="M 195.05078,457.20782 C 182.93603,457.20782 172,466.24347 172,478.46758 v 269.58204 c 0,12.22411 10.93603,21.25976 23.05078,21.25976 h 216 c 12.11475,0 23.05078,-9.03565 23.05078,-21.25976 V 542.61016 a 8.7489004,8.7489004 0 0 1 -0.0957,0.34375 8,8 0 0 0 -7.88477,-7.20508 l -56,-0.49023 c -6.03453,-0.0529 -9.09177,-1.43162 -10.86523,-3.20508 -1.77346,-1.77346 -3.15222,-4.8307 -3.20508,-10.86523 l -0.49023,-56 a 8,8 0 0 0 -7.35157,-7.82227 8.7489004,8.7489004 0 0 1 0.58985,-0.1582 z m 0,16.10156 h 144.58008 l 0.41992,48.01953 c 0.0756,8.63153 2.36275,16.51118 7.89062,22.03907 5.52789,5.52787 13.40754,7.815 22.03907,7.89062 L 418,551.67852 v 196.3711 c 0,2.4121 -2.44401,5.1582 -6.94922,5.1582 h -216 c -4.50521,0 -6.94922,-2.7461 -6.94922,-5.1582 V 478.46758 c 0,-2.4121 2.44401,-5.1582 6.94922,-5.1582 z" />
+        <rect
+           x="253.3349"
+           y="596.38715"
+           width="99.431801"
+           height="93.863617"
+           rx="4.7727265"
+           stroke="#14b8a6"
+           stroke-width="5.56818"
+           stroke-dasharray="17, 19"
+           id="rect12-4-5" />
+        <path
+           d="m 236.55076,601.31898 v -29 h 30"
+           stroke="#14b8a6"
+           stroke-width="12"
+           stroke-linecap="round"
+           stroke-linejoin="round"
+           id="path13-8-7" />
+        <path
+           d="m 370.55076,601.31898 v -29 h -30"
+           stroke="#14b8a6"
+           stroke-width="12"
+           stroke-linecap="round"
+           stroke-linejoin="round"
+           id="path14-3-6" />
+        <path
+           d="m 236.55076,684.31898 v 29 h 30"
+           stroke="#14b8a6"
+           stroke-width="12"
+           stroke-linecap="round"
+           stroke-linejoin="round"
+           id="path15-9-2" />
+        <path
+           d="m 370.55076,684.31898 v 29 h -30"
+           stroke="#14b8a6"
+           stroke-width="12"
+           stroke-linecap="round"
+           stroke-linejoin="round"
+           id="path16-0-7" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="g4"
+     inkscape:export-filename="logo_dark.png"
+     inkscape:export-xdpi="300"
+     inkscape:export-ydpi="300">
+    <rect
+       style="fill:#172b4d;fill-opacity:1;stroke:none;stroke-width:24.5669;stroke-linecap:square;paint-order:markers stroke fill"
+       id="rect3"
+       width="521.27679"
+       height="521.27679"
+       x="1625.4541"
+       y="9.0920372"
+       rx="33.337467"
+       ry="33.337467" />
+    <g
+       id="g29"
+       transform="matrix(1.4214505,0,0,1.4214505,1360.2422,281.65476)">
+      <path
+         d="m 415.68727,-164.43962 82.83082,80.8121 -53.57887,3.23868 c -18,1.33333 -27.66667,-7 -29,-25 z"
+         fill="#6b7280"
+         opacity="0.25"
+         id="path12-2"
+         sodipodi:nodetypes="ccccc" />
+      <path
+         id="rect28"
+         style="color:#000000;fill:#ffffff;fill-opacity:1;stroke-linecap:round;stroke-linejoin:round;-inkscape-stroke:none"
+         d="m 261.93922,-164.43962 c -12.11475,0 -23.05078,9.03565 -23.05078,21.25976 v 269.58204 c 0,12.22411 10.93603,21.25976 23.05078,21.25976 h 216 c 12.11475,0 23.05078,-9.03565 23.05078,-21.25976 V -79.03728 a 8.7489004,8.7489004 0 0 1 -0.0957,0.34375 8,8 0 0 0 -7.88477,-7.20508 l -56,-0.49023 c -6.03453,-0.0529 -9.09177,-1.43162 -10.86523,-3.20508 -1.77346,-1.77346 -3.15222,-4.8307 -3.20508,-10.86523 l -0.49023,-56 a 8,8 0 0 0 -7.35157,-7.82227 8.7489004,8.7489004 0 0 1 0.58985,-0.1582 z m 0,16.10156 H 406.5193 l 0.41992,48.01953 c 0.0756,8.63153 2.36275,16.51118 7.89062,22.03907 5.52789,5.52787 13.40754,7.815 22.03907,7.89062 l 48.01953,0.41992 v 196.3711 c 0,2.4121 -2.44401,5.1582 -6.94922,5.1582 h -216 c -4.50521,0 -6.94922,-2.7461 -6.94922,-5.1582 v -269.58204 c 0,-2.4121 2.44401,-5.1582 6.94922,-5.1582 z" />
+      <rect
+         x="320.22333"
+         y="-25.260269"
+         width="99.431801"
+         height="93.863617"
+         rx="4.7727265"
+         stroke="#14b8a6"
+         stroke-width="5.56818"
+         stroke-dasharray="17, 19"
+         id="rect12-4" />
+      <path
+         d="m 303.4392,-20.32846 v -29 h 30"
+         stroke="#14b8a6"
+         stroke-width="12"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path13-8" />
+      <path
+         d="m 437.4392,-20.32846 v -29 h -30"
+         stroke="#14b8a6"
+         stroke-width="12"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path14-3" />
+      <path
+         d="m 303.4392,62.67154 v 29 h 30"
+         stroke="#14b8a6"
+         stroke-width="12"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path15-9" />
+      <path
+         d="m 437.4392,62.67154 v 29 h -30"
+         stroke="#14b8a6"
+         stroke-width="12"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path16-0" />
+    </g>
+  </g>
+</svg>
