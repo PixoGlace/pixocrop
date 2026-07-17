@@ -37,7 +37,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pixoCrop-linux-x86_64
-          path: release/pixoCrop-linux-x86_64.tar.gz
+          path: |
+            release/pixoCrop-linux-x86_64.tar.gz
+            release/pixocrop_*_amd64.deb
           if-no-files-found: error
 
   build-windows:
@@ -58,6 +60,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,build]"
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
       - name: Test
         run: |
           python -m compileall src tests
@@ -70,14 +75,25 @@ jobs:
       - name: Package archive
         shell: pwsh
         run: |
+          python packaging/create_packaging_art.py
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Compress-Archive -Path dist/pixoCrop -DestinationPath release/pixoCrop-windows-x64.zip -Force
+          $env:PIXO_APP_NAME = "pixoCrop"
+          $env:PIXO_APP_VERSION = python -c "from pixocrop.config import VERSION; print(VERSION)"
+          $env:PIXO_SOURCE_DIR = "$PWD\dist\pixoCrop"
+          $env:PIXO_OUTPUT_DIR = "$PWD\release"
+          $env:PIXO_ROOT_DIR = "$PWD"
+          $env:PIXO_WIZARD_IMAGE = "$PWD\build\packaging\windows-wizard.bmp"
+          $env:PIXO_WIZARD_SMALL_IMAGE = "$PWD\build\packaging\windows-small.bmp"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "packaging\windows\pixoCrop.iss"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: pixoCrop-windows-x64
-          path: release/pixoCrop-windows-x64.zip
+          path: |
+            release/pixoCrop-windows-x64.zip
+            release/pixoCrop-windows-x64-setup.exe
           if-no-files-found: error
 
   build-macos:
@@ -106,6 +122,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,build]"
 
+      - name: Install DMG tooling
+        run: brew install create-dmg
+
       - name: Verify runner architecture
         run: |
           actual_arch="$(uname -m)"
@@ -124,14 +143,34 @@ jobs:
 
       - name: Package archive
         run: |
+          python packaging/create_packaging_art.py
           mkdir -p release
           ditto -c -k --sequesterRsrc --keepParent "dist/pixoCrop.app" "release/pixoCrop-macos-${{ matrix.arch }}.zip"
+          rm -rf "release/dmg-root-${{ matrix.arch }}"
+          mkdir -p "release/dmg-root-${{ matrix.arch }}"
+          cp -R "dist/pixoCrop.app" "release/dmg-root-${{ matrix.arch }}/pixoCrop.app"
+          ln -s /Applications "release/dmg-root-${{ matrix.arch }}/Applications"
+          create-dmg \
+            --volname "pixoCrop" \
+            --volicon "assets/pixoCrop.icns" \
+            --background "build/packaging/dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 640 420 \
+            --icon-size 96 \
+            --icon "pixoCrop.app" 170 250 \
+            --hide-extension "pixoCrop.app" \
+            --app-drop-link 470 250 \
+            --no-internet-enable \
+            "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
+            "release/dmg-root-${{ matrix.arch }}"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: pixoCrop-macos-${{ matrix.arch }}
-          path: release/pixoCrop-macos-${{ matrix.arch }}.zip
+          path: |
+            release/pixoCrop-macos-${{ matrix.arch }}.zip
+            release/pixoCrop-macos-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
   release:
