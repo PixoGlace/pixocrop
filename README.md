@@ -114,8 +114,8 @@ telechargeable directement et independamment.
 Exemple :
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 Archives publiees :
