@@ -23,9 +23,9 @@
         <a class="skip-link" href="#contenu">Aller au contenu</a>
 
         <aside class="open-banner" aria-label="Information">
-            <p>Un outil PixoGlace, libre et soigneusement emballe.</p>
+            <p data-i18n="banner.text">Un outil PixoGlace, libre et soigneusement emballe.</p>
             <a href="https://github.com/PixoGlace/pixoCrop"
-                rel="me noopener">Voir le code source <span
+                rel="me noopener"><span data-i18n="banner.source">Voir le code source</span> <span
                     aria-hidden="true">↗</span></a>
         </aside>
 
@@ -36,29 +36,40 @@
                 <span>PixoCrop</span>
             </a>
             <nav aria-label="Navigation principale">
-                <a href="#fonctionnalites">Fonctions</a>
-                <a href="#installer">Installer</a>
-                <a href="#telecharger">Telecharger</a>
-                <a href="#proteger">Licence</a>
+                <a href="#fonctionnalites" data-i18n="nav.features">Fonctions</a>
+                <a href="#installer" data-i18n="nav.install">Installer</a>
+                <a href="#telecharger" data-i18n="nav.download">Telecharger</a>
+                <a href="#proteger" data-i18n="nav.license">Licence</a>
                 <a href="https://github.com/PixoGlace/pixoCrop"
                     rel="me noopener">GitHub</a>
             </nav>
             <div class="header-actions">
+                <label class="language-picker">
+                    <span class="sr-only" data-i18n="language.label">Langue</span>
+                    <select id="language-select" aria-label="Langue">
+                        <option value="fr">FR</option>
+                        <option value="en">EN</option>
+                        <option value="ar">AR</option>
+                        <option value="zh">中文</option>
+                    </select>
+                </label>
                 <button class="theme-toggle" type="button"
                     aria-label="Activer le theme sombre" aria-pressed="false">
                     <span class="theme-toggle-icon" aria-hidden="true">☾</span>
                 </button>
-                <a class="header-button" href="#telecharger">Telecharger</a>
+                <a class="header-button" href="#telecharger" data-i18n="nav.download">Telecharger</a>
+                <a class="header-button kofi-button" href="https://ko-fi.com/pixoglace"
+                    rel="noopener"><span data-i18n="donation.kofi">Ko-fi</span></a>
             </div>
         </header>
 
         <main id="contenu">
             <section class="hero" id="accueil" aria-labelledby="hero-title">
                 <div class="hero-copy">
-                    <p class="kicker">PDF · Etiquettes · Impression</p>
-                    <h1 id="hero-title">Imprimez vos bordereaux<br><em>sans
+                    <p class="kicker" data-i18n="hero.kicker">PDF · Etiquettes · Impression</p>
+                    <h1 id="hero-title" data-i18n-html="hero.title">Imprimez vos bordereaux<br><em>sans
                             friction.</em></h1>
-                    <p>PixoCrop detecte la zone utile d'un PDF, la recadre
+                    <p data-i18n="hero.copy">PixoCrop detecte la zone utile d'un PDF, la recadre
                         proprement et l'envoie a l'imprimante avec un apercu
                         clair.</p>
                 </div>
@@ -72,11 +83,11 @@
                         <img src="static/assets/pixocrop-preview.png"
                             alt="Interface de PixoCrop avec apercu PDF">
                     </div>
-                    <span class="value-bubble bubble-open">Open source <b
+                    <span class="value-bubble bubble-open"><span data-i18n="hero.bubbleOpen">Open source</span> <b
                             aria-hidden="true">⌁</b></span>
-                    <span class="value-bubble bubble-clear">Recadrage clair <b
+                    <span class="value-bubble bubble-clear"><span data-i18n="hero.bubbleClear">Recadrage clair</span> <b
                             aria-hidden="true">✦</b></span>
-                    <span class="value-bubble bubble-kind">Pret a imprimer <b
+                    <span class="value-bubble bubble-kind"><span data-i18n="hero.bubblePrint">Pret a imprimer</span> <b
                             aria-hidden="true">↓</b></span>
                     <span class="pixel pixel-one" aria-hidden="true"></span>
                     <span class="pixel pixel-two" aria-hidden="true"></span>
@@ -84,7 +95,7 @@
                 </div>
 
                 <a class="scroll-cue" href="#fonctionnalites">
-                    <span>Voir l'outil</span>
+                    <span data-i18n="hero.scroll">Voir l'outil</span>
                     <span aria-hidden="true">↓</span>
                 </a>
             </section>
@@ -92,35 +103,35 @@
             <section class="product-section" id="fonctionnalites"
                 aria-labelledby="features-title">
                 <header class="section-heading">
-                    <p class="kicker">Le flux de travail</p>
-                    <h2 id="features-title">Un petit outil pour gagner
+                    <p class="kicker" data-i18n="features.kicker">Le flux de travail</p>
+                    <h2 id="features-title" data-i18n-html="features.title">Un petit outil pour gagner
                         <em>beaucoup de gestes.</em></h2>
                 </header>
 
                 <div class="feature-grid">
                     <article class="feature-tile feature-blue">
                         <span class="tile-number">01</span>
-                        <h3>Detection automatique</h3>
-                        <p>Ouvrez un PDF, PixoCrop cherche la zone de bordereau
+                        <h3 data-i18n="features.autoTitle">Detection automatique</h3>
+                        <p data-i18n="features.autoCopy">Ouvrez un PDF, PixoCrop cherche la zone de bordereau
                             et affiche le rectangle a imprimer.</p>
                     </article>
                     <article class="feature-tile feature-mint">
                         <span class="tile-number">02</span>
-                        <h3>Correction manuelle</h3>
-                        <p>Dessinez ou deplacez la zone si le document a un
+                        <h3 data-i18n="features.manualTitle">Correction manuelle</h3>
+                        <p data-i18n="features.manualCopy">Dessinez ou deplacez la zone si le document a un
                             format particulier.</p>
                     </article>
                     <article class="feature-tile feature-peach">
                         <span class="tile-number">03</span>
-                        <h3>Impression controlee</h3>
-                        <p>Choisissez l'imprimante, les pages, le zoom, le
+                        <h3 data-i18n="features.printTitle">Impression controlee</h3>
+                        <p data-i18n="features.printCopy">Choisissez l'imprimante, les pages, le zoom, le
                             recto-verso et les reglages par defaut du
                             pilote.</p>
                     </article>
                     <article class="feature-tile feature-lilac">
                         <span class="tile-number">04</span>
-                        <h3>Release Linux</h3>
-                        <p>Generez un executable autonome a double-cliquer avec
+                        <h3 data-i18n="features.releaseTitle">Release Linux</h3>
+                        <p data-i18n="features.releaseCopy">Generez un executable autonome a double-cliquer avec
                             la cible <code>make release-linux</code>.</p>
                     </article>
                 </div>
@@ -128,20 +139,20 @@
 
             <section class="workflow" aria-labelledby="workflow-title">
                 <div class="workflow-intro">
-                    <p class="kicker">Documentation rapide</p>
-                    <h2 id="workflow-title">De l'ouverture du PDF a l'etiquette
+                    <p class="kicker" data-i18n="workflow.kicker">Documentation rapide</p>
+                    <h2 id="workflow-title" data-i18n="workflow.title">De l'ouverture du PDF a l'etiquette
                         imprimee.</h2>
-                    <p>Le parcours reste volontairement court : charger,
+                    <p data-i18n="workflow.copy">Le parcours reste volontairement court : charger,
                         verifier, ajuster si besoin, imprimer.</p>
                 </div>
                 <ol class="steps">
-                    <li><span>1</span><p>Ouvrez un PDF ou deposez-le dans
+                    <li><span>1</span><p data-i18n="workflow.step1">Ouvrez un PDF ou deposez-le dans
                             l'aperçu.</p></li>
-                    <li><span>2</span><p>Laissez PixoCrop detecter
+                    <li><span>2</span><p data-i18n="workflow.step2">Laissez PixoCrop detecter
                             automatiquement la zone utile.</p></li>
-                    <li><span>3</span><p>Ajustez la marge, le rectangle ou
+                    <li><span>3</span><p data-i18n="workflow.step3">Ajustez la marge, le rectangle ou
                             appliquez la zone a toutes les pages.</p></li>
-                    <li><span>4</span><p>Ouvrez la fenetre d'impression et
+                    <li><span>4</span><p data-i18n="workflow.step4">Ouvrez la fenetre d'impression et
                             utilisez les parametres de l'imprimante ou vos
                             propres reglages.</p></li>
                 </ol>
@@ -162,20 +173,20 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
 ./pixoCrop-linux-x86_64/pixoCrop</code></pre>
                 </div>
                 <div class="install-copy">
-                    <p class="kicker">Installer et publier</p>
-                    <h2 id="install-title">Un depot pret pour GitHub Pages et
+                    <p class="kicker" data-i18n="install.kicker">Installer et publier</p>
+                    <h2 id="install-title" data-i18n="install.title">Un depot pret pour GitHub Pages et
                         les releases.</h2>
-                    <p>La vitrine vit dans <code>docs/</code>. Dans GitHub,
+                    <p data-i18n-html="install.copy">La vitrine vit dans <code>docs/</code>. Dans GitHub,
                         activez Pages depuis la branche principale avec le
                         dossier <code>/docs</code>.</p>
                     <div class="actions">
                         <a class="pill-button pill-primary"
                             href="https://github.com/PixoGlace/pixoCrop/releases"
-                            rel="noopener">Releases <span
+                            rel="noopener"><span data-i18n="install.releases">Releases</span> <span
                                 aria-hidden="true">↗</span></a>
                         <a class="pill-button pill-secondary"
                             href="https://github.com/PixoGlace/pixoCrop"
-                            rel="noopener">Code source</a>
+                            rel="noopener" data-i18n="install.source">Code source</a>
                     </div>
                 </div>
             </section>
@@ -183,9 +194,10 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
             <section class="download-section" id="telecharger"
                 aria-labelledby="download-title">
                 <header class="section-heading">
-                    <p class="kicker">Binaires prets a lancer</p>
-                    <h2 id="download-title">Telechargez PixoCrop pour <em>votre
+                    <p class="kicker" data-i18n="download.kicker">Binaires prets a lancer</p>
+                    <h2 id="download-title" data-i18n-html="download.title">Telechargez PixoCrop pour <em>votre
                             plateforme.</em></h2>
+                    <p class="release-status" id="release-status" data-i18n="download.loading">Recherche de la derniere version...</p>
                 </header>
 
                 <div class="download-grid">
@@ -193,47 +205,63 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
                         <span class="download-mark" aria-hidden="true">_</span>
                         <div class="download-copy">
                             <p class="download-platform">Linux</p>
-                            <h3>Executable autonome</h3>
-                            <p>Archive <code>tar.gz</code> avec binaire a
+                            <h3 data-i18n="download.linuxTitle">Executable autonome</h3>
+                            <p data-i18n-html="download.linuxCopy">Archive <code>tar.gz</code> avec binaire a
                                 double-cliquer et fichier desktop.</p>
                         </div>
-                        <a class="pill-button pill-primary"
+                        <div class="download-actions" data-download-platform="linux">
+                        <a class="pill-button pill-primary asset-link"
+                            data-asset-pattern="linux-x86_64.tar.gz"
                             href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-linux-x86_64.tar.gz"
                             rel="noopener">Linux x86_64 <span
                                 aria-hidden="true">↓</span></a>
+                        <a class="pill-button pill-secondary asset-link"
+                            data-asset-pattern=".deb"
+                            href="https://github.com/PixoGlace/pixoCrop/releases/latest"
+                            rel="noopener">DEB amd64 <span aria-hidden="true">↓</span></a>
+                        </div>
                     </article>
 
                     <article class="download-card download-windows">
                         <span class="download-mark" aria-hidden="true">□</span>
                         <div class="download-copy">
                             <p class="download-platform">Windows</p>
-                            <h3>Package ZIP</h3>
-                            <p>Archive Windows generee depuis une machine
-                                Windows ou une CI dediee.</p>
+                            <h3 data-i18n="download.windowsTitle">Installateur Windows</h3>
+                            <p data-i18n="download.windowsCopy">Installateur graphique ou archive ZIP pour Windows x64.</p>
                         </div>
-                        <a class="pill-button pill-secondary"
+                        <div class="download-actions" data-download-platform="windows">
+                        <a class="pill-button pill-primary asset-link"
+                            data-asset-pattern="windows-x64-setup.exe"
+                            href="https://github.com/PixoGlace/pixoCrop/releases/latest"
+                            rel="noopener">Setup x64 <span aria-hidden="true">↓</span></a>
+                        <a class="pill-button pill-secondary asset-link"
+                            data-asset-pattern="windows-x64.zip"
                             href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-windows-x64.zip"
                             rel="noopener">Windows x64 <span
                                 aria-hidden="true">↓</span></a>
+                        </div>
                     </article>
 
                     <article class="download-card download-macos">
                         <span class="download-mark" aria-hidden="true">×</span>
                         <div class="download-copy">
                             <p class="download-platform">macOS</p>
-                            <h3>Application macOS</h3>
-                            <p>Archive macOS a produire sur macOS pour respecter
-                                le packaging natif.</p>
+                            <h3 data-i18n="download.macosTitle">DMG macOS</h3>
+                            <p data-i18n="download.macosCopy">Image DMG avec glisser-deposer vers Applications, plus archives ZIP de secours.</p>
                         </div>
                         <div class="download-actions">
-                            <a class="pill-button pill-secondary"
+                            <a class="pill-button pill-primary asset-link"
+                                data-asset-pattern="macos-arm64.dmg"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest"
+                                rel="noopener">DMG Apple Silicon <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern="macos-x86_64.dmg"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest"
+                                rel="noopener">DMG Intel <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern="macos-arm64.zip"
                                 href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-arm64.zip"
-                                rel="noopener">macOS arm64 <span
-                                    aria-hidden="true">↓</span></a>
-                            <a class="pill-button pill-secondary"
-                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-x86_64.zip"
-                                rel="noopener">macOS Intel <span
-                                    aria-hidden="true">↓</span></a>
+                                rel="noopener">ZIP arm64 <span aria-hidden="true">↓</span></a>
                         </div>
                     </article>
                 </div>
@@ -242,8 +270,8 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
             <section class="legal-grid" id="proteger"
                 aria-labelledby="legal-title">
                 <div class="legal-copy">
-                    <p class="kicker">Libre, mais protege</p>
-                    <h2 id="legal-title">Le code circule, la marque reste
+                    <p class="kicker" data-i18n="legal.kicker">Libre, mais protege</p>
+                    <h2 id="legal-title" data-i18n="legal.title">Le code circule, la marque reste
                         claire.</h2>
                 </div>
                 <div class="legal-list">
@@ -251,26 +279,26 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
                         href="https://github.com/PixoGlace/pixoCrop/blob/main/LICENSE"
                         rel="noopener">
                         <span>GPL-3.0</span>
-                        <p>Le code source est publie sous GNU General Public
+                        <p data-i18n="legal.gpl">Le code source est publie sous GNU General Public
                             License v3.0.</p>
                     </a>
                     <a
                         href="https://github.com/PixoGlace/pixoCrop/blob/main/COPYRIGHT"
                         rel="noopener">
                         <span>Copyright</span>
-                        <p>Les droits du projet sont attribues a PixoGlace.</p>
+                        <p data-i18n="legal.copyright">Les droits du projet sont attribues a PixoGlace.</p>
                     </a>
                     <a
                         href="https://github.com/PixoGlace/pixoCrop/blob/main/TRADEMARKS.md"
                         rel="noopener">
-                        <span>Marques</span>
-                        <p>Les noms, logos, icones et l'identite visuelle
+                        <span data-i18n="legal.trademarksTitle">Marques</span>
+                        <p data-i18n="legal.trademarks">Les noms, logos, icones et l'identite visuelle
                             restent reserves.</p>
                     </a>
-                    <a href="https://www.buymeacoffee.com/pixoglace"
+                    <a href="https://ko-fi.com/pixoglace"
                         rel="noopener">
                         <span>Donation</span>
-                        <p>Soutenez le developpement via Buy Me a Coffee.</p>
+                        <p data-i18n="legal.donation">Soutenez le developpement via Ko-fi.</p>
                     </a>
                 </div>
             </section>
@@ -281,15 +309,21 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
                         src="static/assets/logo_white.png" alt>
                 </div>
                 <div class="join-copy">
-                    <p class="kicker">Projet PixoGlace</p>
-                    <h2 id="join-title">Un outil simple, ouvert, et pret a
+                    <p class="kicker" data-i18n="join.kicker">Projet PixoGlace</p>
+                    <h2 id="join-title" data-i18n="join.title">Un outil simple, ouvert, et pret a
                         evoluer.</h2>
-                    <p>Contribuez, signalez un souci d'impression ou proposez un
+                    <p data-i18n="join.copy">Contribuez, signalez un souci d'impression ou proposez un
                         format de bordereau a mieux detecter.</p>
-                    <a class="pill-button pill-primary"
-                        href="https://github.com/PixoGlace/pixoCrop/issues"
-                        rel="noopener">Ouvrir une issue <span
-                            aria-hidden="true">↗</span></a>
+                    <div class="actions">
+                        <a class="pill-button pill-primary"
+                            href="https://github.com/PixoGlace/pixoCrop/issues"
+                            rel="noopener"><span data-i18n="join.issue">Ouvrir une issue</span> <span
+                                aria-hidden="true">↗</span></a>
+                        <a class="pill-button pill-kofi"
+                            href="https://ko-fi.com/pixoglace"
+                            rel="noopener"><span data-i18n="donation.kofiLong">Soutenir sur Ko-fi</span> <span
+                                aria-hidden="true">♥</span></a>
+                    </div>
                 </div>
             </section>
         </main>
@@ -300,20 +334,20 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
                     <img class="theme-logo"
                         src="static/assets/logo_white.png" alt
                         width="56" height="61">
-                    <span><strong>PixoCrop</strong><small>Un projet
+                    <span><strong>PixoCrop</strong><small data-i18n="footer.project">Un projet
                             PixoGlace.</small></span>
                 </a>
                 <nav aria-label="Navigation de pied de page">
-                    <a href="#fonctionnalites">Fonctions</a>
-                    <a href="#installer">Installer</a>
-                    <a href="#telecharger">Telecharger</a>
+                    <a href="#fonctionnalites" data-i18n="nav.features">Fonctions</a>
+                    <a href="#installer" data-i18n="nav.install">Installer</a>
+                    <a href="#telecharger" data-i18n="nav.download">Telecharger</a>
                     <a href="https://github.com/PixoGlace"
                         rel="me noopener">PixoGlace ↗</a>
                 </nav>
             </div>
             <div class="footer-bottom">
                 <p>© <span id="current-year">2026</span> PixoGlace</p>
-                <p>GPL-3.0 pour le code. Marques reservees.</p>
+                <p data-i18n="footer.legal">GPL-3.0 pour le code. Marques reservees.</p>
             </div>
         </footer>
         <script src="static/script.js" defer></script>
