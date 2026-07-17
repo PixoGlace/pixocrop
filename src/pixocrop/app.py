@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import json
+import re
 import sys
+import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import fitz
-from PySide6.QtCore import QEvent, QMarginsF, QPointF, QRect, QRectF, QSize, QSizeF, Qt
-from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPen, QPixmap
+from PySide6.QtCore import QEvent, QMarginsF, QObject, QPointF, QRect, QRectF, QSettings, QSize, QSizeF, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPen, QPixmap
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (
     QApplication,
@@ -35,9 +40,10 @@ from PySide6.QtWidgets import (
 
 from pixocrop.detection import PdfRect, detect_all_pages
 from pixocrop.pdf_ops import crop_pdf
+from pixocrop.config import APP_NAME, DONATION_TEXT, DONATION_URL, KOFI_URL, PROJECT_LICENSE, PROJECT_URL, UPDATE_CHECK_URL, VERSION
+from pixocrop.language_config import DEFAULT_LANGUAGE, LANGUAGES, is_rtl, translate
 
 POINTS_PER_MM = 72 / 25.4
-APP_NAME = "pixoCrop"
 PIXO_NAVY = "#172B4D"
 PIXO_TEAL = "#14B8A6"
 PIXO_AMBER = "#F59E0B"
@@ -67,6 +73,188 @@ def themed_icon(filename: str = "logo_white.png") -> QIcon:
     if path.exists():
         return QIcon(str(path))
     return QIcon()
+
+
+def app_text(language: str, key: str, **values: object) -> str:
+    return translate(language, key, **values)
+
+
+def normalized_version_parts(version: str) -> tuple[int, ...]:
+    cleaned = version.strip().lstrip("vV")
+    return tuple(int(part) for part in re.findall(r"\d+", cleaned))
+
+
+def is_newer_version(latest_version: str, current_version: str) -> bool:
+    latest_parts = normalized_version_parts(latest_version)
+    current_parts = normalized_version_parts(current_version)
+    max_length = max(len(latest_parts), len(current_parts))
+    latest_parts = latest_parts + (0,) * (max_length - len(latest_parts))
+    current_parts = current_parts + (0,) * (max_length - len(current_parts))
+    return latest_parts > current_parts
+
+
+class UpdateChecker(QObject):
+    update_available = Signal(str, str)
+    no_update_available = Signal()
+    check_failed = Signal()
+    check_finished = Signal(bool)
+
+    def check_async(self, *, manual: bool = False) -> None:
+        thread = threading.Thread(target=self._check, args=(manual,), daemon=True)
+        thread.start()
+
+    def _check(self, manual: bool) -> None:
+        try:
+            request = urllib.request.Request(
+                UPDATE_CHECK_URL,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": f"{APP_NAME}/{VERSION}",
+                },
+            )
+            with urllib.request.urlopen(request, timeout=6) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+            latest_version = str(payload.get("tag_name") or "").strip()
+            download_url = str(payload.get("html_url") or PROJECT_URL).strip()
+            if latest_version and is_newer_version(latest_version, VERSION):
+                self.update_available.emit(latest_version, download_url)
+            elif manual:
+                self.no_update_available.emit()
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError):
+            if manual:
+                self.check_failed.emit()
+        finally:
+            self.check_finished.emit(manual)
+
+
+class AboutDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        language = getattr(parent, "language", DEFAULT_LANGUAGE)
+        self.setLayoutDirection(
+            Qt.LayoutDirection.RightToLeft
+            if is_rtl(language)
+            else Qt.LayoutDirection.LeftToRight
+        )
+        self.setWindowTitle(app_text(language, "about_app", app_name=APP_NAME))
+        self.setWindowIcon(themed_icon())
+        self.resize(560, 520)
+
+        logo_label = QLabel()
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo = QPixmap(str(asset_path("title_white.png")))
+        if not logo.isNull():
+            logo_label.setPixmap(
+                logo.scaledToHeight(
+                    90,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        else:
+            logo_label.setText(APP_NAME)
+
+        project_link = (
+            f'<a href="{PROJECT_URL}">{PROJECT_URL}</a>'
+            if PROJECT_URL
+            else "Lien du projet non configuré."
+        )
+        donation_link = (
+            f'<a href="{DONATION_URL}">{DONATION_TEXT}</a>'
+            if DONATION_URL
+            else "Lien de donation non configuré."
+        )
+
+        details = QLabel(
+            f"""
+            <h2>{APP_NAME} {VERSION}</h2>
+            <p>{app_text(language, "about_description")}</p>
+
+            <h3>{app_text(language, "about_license")}</h3>
+            <p>{app_text(language, "about_license_text", license=PROJECT_LICENSE)}</p>
+
+            <h3>{app_text(language, "about_donation")}</h3>
+            <p>{donation_link}</p>
+
+            <h3>{app_text(language, "about_credits")}</h3>
+            <p>
+                Interface : PySide6 / Qt<br>
+                Lecture et rendu PDF : PyMuPDF<br>
+                Traitement image : Pillow, NumPy<br>
+                Packaging : PyInstaller
+            </p>
+
+            <h3>{app_text(language, "about_project")}</h3>
+            <p>{project_link}</p>
+            """
+        )
+        details.setTextFormat(Qt.TextFormat.RichText)
+        details.setOpenExternalLinks(True)
+        details.setWordWrap(True)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(22, 22, 22, 22)
+        layout.setSpacing(14)
+        layout.addWidget(logo_label)
+        layout.addWidget(details)
+        layout.addWidget(buttons)
+        self.setLayout(layout)
+
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent: "MainWindow") -> None:
+        super().__init__(parent)
+        self.window = parent
+        self.setWindowTitle(parent.t("settings"))
+        self.setWindowIcon(themed_icon())
+        self.setLayoutDirection(parent.layoutDirection())
+        self.resize(420, 180)
+
+        self.language_combo = QComboBox()
+        for code, language in LANGUAGES.items():
+            self.language_combo.addItem(language["name"], code)
+        current_index = self.language_combo.findData(parent.language)
+        if current_index >= 0:
+            self.language_combo.setCurrentIndex(current_index)
+
+        form = QFormLayout()
+        form.addRow(parent.t("settings_language"), self.language_combo)
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem(parent.t("theme_light"), "light")
+        self.theme_combo.addItem(parent.t("theme_dark"), "dark")
+        current_theme_index = self.theme_combo.findData(parent.current_theme)
+        if current_theme_index >= 0:
+            self.theme_combo.setCurrentIndex(current_theme_index)
+        form.addRow(parent.t("theme"), self.theme_combo)
+
+        note = QLabel(parent.t("settings_note"))
+        note.setWordWrap(True)
+
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+        layout.addLayout(form)
+        layout.addWidget(note)
+        layout.addWidget(self.button_box)
+        self.setLayout(layout)
+
+    def selected_language(self) -> str:
+        language = self.language_combo.currentData()
+        return language if language in LANGUAGES else DEFAULT_LANGUAGE
+
+    def selected_theme(self) -> str:
+        theme = self.theme_combo.currentData()
+        return theme if theme in {"light", "dark"} else "light"
 
 
 class PreviewView(QGraphicsView):
@@ -220,8 +408,10 @@ class PrintOptionsDialog(QDialog):
         self.current_page = self._clamp_page_index(current_page)
         self.printers = QPrinterInfo.availablePrinters()
         self._preview_image: QImage | None = None
+        self.t = parent.t
+        self.setLayoutDirection(parent.layoutDirection())
 
-        self.setWindowTitle("Imprimer la zone sélectionnée")
+        self.setWindowTitle(self.t("print_title"))
         self.setWindowIcon(themed_icon())
         self.resize(920, 680)
 
@@ -261,28 +451,28 @@ class PrintOptionsDialog(QDialog):
         self.duplex_combo = self._create_duplex_combo()
         self.zoom_spin = self._create_zoom_spin()
 
-        self.fit_page_check = QCheckBox("Adapter à la page")
+        self.fit_page_check = QCheckBox(self.t("fit_to_page"))
         self.fit_page_check.setChecked(True)
 
         form = QFormLayout()
-        form.addRow("Imprimante", self.printer_combo)
-        form.addRow("Pages", self.page_combo)
-        form.addRow("Aperçu page", self.preview_page_spin)
-        form.addRow("Copies", self.copies_spin)
-        form.addRow("Couleur", self.color_combo)
-        form.addRow("Orientation", self.orientation_buttons)
-        form.addRow("Format papier", self.paper_size_combo)
-        form.addRow("Qualité", self.resolution_combo)
-        form.addRow("Recto-verso", self.duplex_combo)
-        form.addRow("Zoom", self.zoom_spin)
+        form.addRow(self.t("printer"), self.printer_combo)
+        form.addRow(self.t("page"), self.page_combo)
+        form.addRow(self.t("preview_page"), self.preview_page_spin)
+        form.addRow(self.t("copies"), self.copies_spin)
+        form.addRow(self.t("color"), self.color_combo)
+        form.addRow(self.t("orientation"), self.orientation_buttons)
+        form.addRow(self.t("paper_size"), self.paper_size_combo)
+        form.addRow(self.t("quality"), self.resolution_combo)
+        form.addRow(self.t("duplex"), self.duplex_combo)
+        form.addRow(self.t("zoom"), self.zoom_spin)
         form.addRow("", self.fit_page_check)
 
-        options_group = QGroupBox("Options d'impression")
+        options_group = QGroupBox(self.t("print_options"))
         options_group.setLayout(form)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.print_button = self.button_box.addButton(
-            "Imprimer",
+            self.t("print"),
             QDialogButtonBox.ButtonRole.AcceptRole,
         )
         self.print_button.setEnabled(bool(self.printers) and bool(self.rects))
@@ -302,7 +492,7 @@ class PrintOptionsDialog(QDialog):
         combo = QComboBox()
 
         if not self.printers:
-            combo.addItem("Aucune imprimante détectée")
+            combo.addItem(self.t("no_printer"))
             combo.setEnabled(False)
             return combo
 
@@ -319,8 +509,8 @@ class PrintOptionsDialog(QDialog):
 
     def _create_page_combo(self) -> QComboBox:
         combo = QComboBox()
-        combo.addItem("Toutes les pages", self.PAGE_ALL)
-        combo.addItem("Page courante", self.PAGE_CURRENT)
+        combo.addItem(self.t("all_pages"), self.PAGE_ALL)
+        combo.addItem(self.t("current_page"), self.PAGE_CURRENT)
         return combo
 
     def _create_preview_page_spin(self) -> QSpinBox:
@@ -338,9 +528,9 @@ class PrintOptionsDialog(QDialog):
 
     def _create_color_combo(self) -> QComboBox:
         combo = QComboBox()
-        combo.addItem("Défaut de l'imprimante", self.PRINTER_DEFAULT)
-        combo.addItem("Couleur", QPrinter.ColorMode.Color)
-        combo.addItem("Noir et blanc", QPrinter.ColorMode.GrayScale)
+        combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
+        combo.addItem(self.t("color"), QPrinter.ColorMode.Color)
+        combo.addItem(self.t("black_white"), QPrinter.ColorMode.GrayScale)
         return combo
 
     def _create_paper_size_combo(self) -> QComboBox:
@@ -353,7 +543,7 @@ class PrintOptionsDialog(QDialog):
         current_name = combo.currentText()
         combo.blockSignals(True)
         combo.clear()
-        combo.addItem("Défaut de l'imprimante", self.PRINTER_DEFAULT)
+        combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
 
         seen: set[str] = {self.PRINTER_DEFAULT}
         printer_info = self.selected_printer_info()
@@ -390,18 +580,18 @@ class PrintOptionsDialog(QDialog):
 
     def _create_resolution_combo(self) -> QComboBox:
         combo = QComboBox()
-        combo.addItem("Défaut de l'imprimante", self.PRINTER_DEFAULT)
-        combo.addItem("Brouillon — 150 dpi", 150)
-        combo.addItem("Standard — 300 dpi", 300)
-        combo.addItem("Haute qualité — 600 dpi", 600)
+        combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
+        combo.addItem(self.t("quality_draft"), 150)
+        combo.addItem(self.t("quality_standard"), 300)
+        combo.addItem(self.t("quality_high"), 600)
         return combo
 
     def _create_duplex_combo(self) -> QComboBox:
         combo = QComboBox()
-        combo.addItem("Défaut de l'imprimante", self.PRINTER_DEFAULT)
-        combo.addItem("Recto simple", QPrinter.DuplexMode.DuplexNone)
-        combo.addItem("Recto-verso bord long", QPrinter.DuplexMode.DuplexLongSide)
-        combo.addItem("Recto-verso bord court", QPrinter.DuplexMode.DuplexShortSide)
+        combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
+        combo.addItem(self.t("duplex_none"), QPrinter.DuplexMode.DuplexNone)
+        combo.addItem(self.t("duplex_long"), QPrinter.DuplexMode.DuplexLongSide)
+        combo.addItem(self.t("duplex_short"), QPrinter.DuplexMode.DuplexShortSide)
         return combo
 
     def _create_zoom_spin(self) -> QSpinBox:
@@ -423,14 +613,14 @@ class PrintOptionsDialog(QDialog):
 
         buttons = [
             self.create_orientation_button(
-                "Défaut", "auto", self.ORIENTATION_DEFAULT
+                self.t("orientation_default"), "auto", self.ORIENTATION_DEFAULT
             ),
-            self.create_orientation_button("Auto", "auto", self.ORIENTATION_AUTO),
+            self.create_orientation_button(self.t("orientation_auto"), "auto", self.ORIENTATION_AUTO),
             self.create_orientation_button(
-                "Portrait", "portrait", self.ORIENTATION_PORTRAIT
+                self.t("orientation_portrait"), "portrait", self.ORIENTATION_PORTRAIT
             ),
             self.create_orientation_button(
-                "Paysage", "landscape", self.ORIENTATION_LANDSCAPE
+                self.t("orientation_landscape"), "landscape", self.ORIENTATION_LANDSCAPE
             ),
         ]
 
@@ -518,7 +708,7 @@ class PrintOptionsDialog(QDialog):
 
     def update_preview(self) -> None:
         if not self.rects:
-            self.preview_label.setText("Aucune zone détectée à imprimer.")
+            self.preview_label.setText(self.t("empty_preview"))
             self.preview_label.setPixmap(QPixmap())
             self._preview_image = None
             return
@@ -528,7 +718,7 @@ class PrintOptionsDialog(QDialog):
         try:
             self._preview_image = self.render_print_preview(page_index)
         except Exception as error:
-            self.preview_label.setText(f"Impossible de générer l'aperçu :\n{error}")
+            self.preview_label.setText(self.t("preview_error", error=error))
             self.preview_label.setPixmap(QPixmap())
             self._preview_image = None
             return
@@ -887,6 +1077,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(themed_icon())
         self.resize(1100, 780)
+        self.settings = QSettings("PixoGlace", APP_NAME)
+        self.language = self._load_language()
+        self.translatable_group_labels: list[tuple[QLabel, str]] = []
+        self.update_checker: UpdateChecker | None = None
 
         self.pdf_path: Path | None = None
         self.document: fitz.Document | None = None
@@ -912,21 +1106,21 @@ class MainWindow(QMainWindow):
 
         self.theme_combo = QComboBox()
         self.theme_combo.setObjectName("themeCombo")
-        self.theme_combo.addItem("Thème clair", "light")
-        self.theme_combo.addItem("Thème sombre", "dark")
+        self.theme_combo.addItem("", "light")
+        self.theme_combo.addItem("", "dark")
 
-        self.open_button = QPushButton("Ouvrir PDF")
+        self.open_button = QPushButton()
         self.open_button.setObjectName("primaryButton")
-        self.detect_button = QPushButton("Auto détecter")
-        self.apply_all_button = QPushButton("Appliquer à toutes")
-        self.export_button = QPushButton("Exporter cropped")
-        self.print_button = QPushButton("Imprimer")
+        self.detect_button = QPushButton()
+        self.apply_all_button = QPushButton()
+        self.export_button = QPushButton()
+        self.print_button = QPushButton()
         self.print_button.setObjectName("accentButton")
         self.previous_page_button = QPushButton("◀")
         self.next_page_button = QPushButton("▶")
         self.zoom_out_button = QPushButton("−")
         self.zoom_in_button = QPushButton("+")
-        self.fit_view_button = QPushButton("Ajuster")
+        self.fit_view_button = QPushButton()
         for compact_button in (
             self.previous_page_button,
             self.next_page_button,
@@ -944,18 +1138,43 @@ class MainWindow(QMainWindow):
 
         self.page_label = QLabel("/ 0")
         self.status = QStatusBar()
+        self.kofi_label = QLabel()
+        self.kofi_label.setObjectName("kofiSponsorLabel")
+        self.kofi_label.setOpenExternalLinks(True)
         self.setStatusBar(self.status)
+        self.status.addPermanentWidget(self.kofi_label)
 
-        self.current_theme = "light"
+        self.current_theme = self._load_theme()
         self.asset_directories = self._candidate_asset_directories()
         self._build_layout()
         self._build_menu()
         self._connect_signals()
         self._set_document_actions_enabled(False)
+        self._sync_theme_combo()
+        self.translate_ui()
         self.apply_theme(self.current_theme)
-        self.status.showMessage("Ouvrez un PDF ou déposez-le dans l'aperçu.")
+        self.status.showMessage(self.t("app_ready"))
 
-    def _toolbar_group(self, title: str, rows: list[list[QWidget]]) -> QWidget:
+    def t(self, key: str, **values: object) -> str:
+        return app_text(self.language, key, **values)
+
+    def _load_language(self) -> str:
+        language = self.settings.value("language", DEFAULT_LANGUAGE, str)
+        return language if language in LANGUAGES else DEFAULT_LANGUAGE
+
+    def _load_theme(self) -> str:
+        theme = self.settings.value("theme", "light", str)
+        return theme if theme in {"light", "dark"} else "light"
+
+    def _sync_theme_combo(self) -> None:
+        index = self.theme_combo.findData(self.current_theme)
+        if index < 0:
+            return
+        self.theme_combo.blockSignals(True)
+        self.theme_combo.setCurrentIndex(index)
+        self.theme_combo.blockSignals(False)
+
+    def _toolbar_group(self, title_key: str, rows: list[list[QWidget]]) -> QWidget:
         group = QWidget()
         group.setObjectName("toolbarGroup")
 
@@ -963,9 +1182,10 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        title_label = QLabel(title)
+        title_label = QLabel(self.t(title_key))
         title_label.setObjectName("toolbarGroupTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.translatable_group_labels.append((title_label, title_key))
         layout.addWidget(title_label)
 
         for row_widgets in rows:
@@ -997,29 +1217,29 @@ class MainWindow(QMainWindow):
         toolbar.setContentsMargins(0, 0, 0, 0)
         toolbar.setSpacing(10)
 
-        page_label = QLabel("Page")
-        margin_label = QLabel("Marge")
+        self.page_field_label = QLabel()
+        self.margin_field_label = QLabel()
 
-        toolbar.addWidget(self._toolbar_group("Fichier", [[self.open_button], [self.export_button]]))
-        toolbar.addWidget(self._toolbar_group("Détection", [[self.detect_button], [self.apply_all_button]]))
+        toolbar.addWidget(self._toolbar_group("toolbar_file", [[self.open_button], [self.export_button]]))
+        toolbar.addWidget(self._toolbar_group("toolbar_detection", [[self.detect_button], [self.apply_all_button]]))
         toolbar.addWidget(
             self._toolbar_group(
-                "Page",
+                "toolbar_page",
                 [
                     [self.previous_page_button, self.next_page_button],
-                    [page_label, self.page_spin, self.page_label],
+                    [self.page_field_label, self.page_spin, self.page_label],
                 ],
             )
         )
         toolbar.addWidget(
             self._toolbar_group(
-                "Vue",
+                "toolbar_view",
                 [[self.zoom_out_button, self.zoom_in_button], [self.fit_view_button]],
             )
         )
-        toolbar.addWidget(self._toolbar_group("Marge", [[margin_label, self.margin_spin]]))
-        toolbar.addWidget(self._toolbar_group("Sortie", [[self.print_button]]))
-        toolbar.addWidget(self._toolbar_group("Thème", [[self.theme_combo]]))
+        toolbar.addWidget(self._toolbar_group("margin", [[self.margin_field_label, self.margin_spin]]))
+        toolbar.addWidget(self._toolbar_group("toolbar_output", [[self.print_button]]))
+        toolbar.addWidget(self._toolbar_group("theme", [[self.theme_combo]]))
         toolbar.addStretch()
 
         self.toolbar_widget = QWidget()
@@ -1040,66 +1260,82 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
 
     def _build_menu(self) -> None:
-        file_menu = self.menuBar().addMenu("Fichier")
-        self.open_action = QAction("Ouvrir PDF", self)
+        self.file_menu = self.menuBar().addMenu("")
+        self.open_action = QAction("", self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(self.open_pdf)
-        file_menu.addAction(self.open_action)
+        self.file_menu.addAction(self.open_action)
 
-        self.export_action = QAction("Exporter cropped", self)
+        self.export_action = QAction("", self)
         self.export_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.export_action.triggered.connect(self.export_cropped)
-        file_menu.addAction(self.export_action)
+        self.file_menu.addAction(self.export_action)
 
-        self.print_action = QAction("Imprimer", self)
+        self.print_action = QAction("", self)
         self.print_action.setShortcut(QKeySequence.StandardKey.Print)
         self.print_action.triggered.connect(self.print_cropped)
-        file_menu.addAction(self.print_action)
+        self.file_menu.addAction(self.print_action)
 
-        file_menu.addSeparator()
+        self.file_menu.addSeparator()
 
-        quit_action = QAction("Quitter", self)
-        quit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        quit_action.triggered.connect(self.close)
-        file_menu.addAction(quit_action)
+        self.quit_action = QAction("", self)
+        self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.quit_action.triggered.connect(self.close)
+        self.file_menu.addAction(self.quit_action)
 
-        view_menu = self.menuBar().addMenu("Affichage")
-        self.previous_page_action = QAction("Page précédente", self)
+        self.view_menu = self.menuBar().addMenu("")
+        self.previous_page_action = QAction("", self)
         self.previous_page_action.setShortcut(QKeySequence(Qt.Key.Key_PageUp))
         self.previous_page_action.triggered.connect(self.previous_page)
-        view_menu.addAction(self.previous_page_action)
+        self.view_menu.addAction(self.previous_page_action)
 
-        self.next_page_action = QAction("Page suivante", self)
+        self.next_page_action = QAction("", self)
         self.next_page_action.setShortcut(QKeySequence(Qt.Key.Key_PageDown))
         self.next_page_action.triggered.connect(self.next_page)
-        view_menu.addAction(self.next_page_action)
+        self.view_menu.addAction(self.next_page_action)
 
-        view_menu.addSeparator()
+        self.view_menu.addSeparator()
 
-        self.zoom_in_action = QAction("Zoom avant", self)
+        self.zoom_in_action = QAction("", self)
         self.zoom_in_action.setShortcut(QKeySequence.StandardKey.ZoomIn)
         self.zoom_in_action.triggered.connect(lambda: self.zoom_view(1.15))
-        view_menu.addAction(self.zoom_in_action)
+        self.view_menu.addAction(self.zoom_in_action)
 
-        self.zoom_out_action = QAction("Zoom arrière", self)
+        self.zoom_out_action = QAction("", self)
         self.zoom_out_action.setShortcut(QKeySequence.StandardKey.ZoomOut)
         self.zoom_out_action.triggered.connect(lambda: self.zoom_view(0.87))
-        view_menu.addAction(self.zoom_out_action)
+        self.view_menu.addAction(self.zoom_out_action)
 
-        self.fit_view_action = QAction("Ajuster à la fenêtre", self)
+        self.fit_view_action = QAction("", self)
         self.fit_view_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_0))
         self.fit_view_action.triggered.connect(self.fit_current_page)
-        view_menu.addAction(self.fit_view_action)
+        self.view_menu.addAction(self.fit_view_action)
 
-        tools_menu = self.menuBar().addMenu("Outils")
-        self.detect_action = QAction("Auto détecter", self)
+        self.tools_menu = self.menuBar().addMenu("")
+        self.detect_action = QAction("", self)
         self.detect_action.setShortcut(QKeySequence("Ctrl+D"))
         self.detect_action.triggered.connect(self.detect_labels)
-        tools_menu.addAction(self.detect_action)
+        self.tools_menu.addAction(self.detect_action)
 
-        self.apply_all_action = QAction("Appliquer la zone à toutes les pages", self)
+        self.apply_all_action = QAction("", self)
         self.apply_all_action.triggered.connect(self.apply_current_crop_to_all_pages)
-        tools_menu.addAction(self.apply_all_action)
+        self.tools_menu.addAction(self.apply_all_action)
+
+        self.tools_menu.addSeparator()
+        self.settings_action = QAction("", self)
+        self.settings_action.setMenuRole(QAction.MenuRole.NoRole)
+        self.settings_action.triggered.connect(self.show_settings_dialog)
+        self.tools_menu.addAction(self.settings_action)
+
+        self.help_menu = self.menuBar().addMenu("")
+        self.check_updates_action = QAction("", self)
+        self.check_updates_action.triggered.connect(self.check_for_updates_manually)
+        self.help_menu.addAction(self.check_updates_action)
+
+        self.help_menu.addSeparator()
+        self.about_action = QAction("", self)
+        self.about_action.triggered.connect(self.show_about_dialog)
+        self.help_menu.addAction(self.about_action)
 
     def _connect_signals(self) -> None:
         self.open_button.clicked.connect(self.open_pdf)
@@ -1115,6 +1351,149 @@ class MainWindow(QMainWindow):
         self.page_spin.valueChanged.connect(self._page_changed)
         self.margin_spin.valueChanged.connect(self.render_current_page)
         self.theme_combo.currentIndexChanged.connect(self.on_theme_changed)
+
+    def show_about_dialog(self) -> None:
+        AboutDialog(self).exec()
+
+    def show_settings_dialog(self) -> None:
+        dialog = SettingsDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self.set_language(dialog.selected_language())
+        self.set_theme(dialog.selected_theme())
+
+    def check_for_updates_on_startup(self) -> None:
+        self.start_update_check(manual=False)
+
+    def check_for_updates_manually(self) -> None:
+        self.start_update_check(manual=True)
+
+    def start_update_check(self, *, manual: bool) -> None:
+        if self.update_checker is not None:
+            return
+        self.update_checker = UpdateChecker(self)
+        self.update_checker.update_available.connect(self.show_update_available_dialog)
+        self.update_checker.no_update_available.connect(self.show_no_update_dialog)
+        self.update_checker.check_failed.connect(self.show_update_check_failed_dialog)
+        self.update_checker.check_finished.connect(self._clear_update_checker)
+        if manual:
+            self.status.showMessage(self.t("update_checking"))
+        self.update_checker.check_async(manual=manual)
+
+    def _clear_update_checker(self, manual: bool) -> None:
+        self.update_checker = None
+        if manual and self.document is None:
+            self.status.showMessage(self.t("app_ready"))
+
+    def show_update_available_dialog(self, latest_version: str, download_url: str) -> None:
+        message = QMessageBox(self)
+        message.setIcon(QMessageBox.Icon.Information)
+        message.setWindowTitle(self.t("update_available"))
+        message.setText(
+            self.t(
+                "update_available_message",
+                app_name=APP_NAME,
+                current_version=VERSION,
+                latest_version=latest_version,
+            )
+        )
+        download_button = message.addButton(
+            self.t("download_update"),
+            QMessageBox.ButtonRole.AcceptRole,
+        )
+        message.addButton(self.t("update_later"), QMessageBox.ButtonRole.RejectRole)
+        message.exec()
+
+        if message.clickedButton() is download_button:
+            QDesktopServices.openUrl(QUrl(download_url))
+
+    def show_no_update_dialog(self) -> None:
+        QMessageBox.information(
+            self,
+            self.t("update_current"),
+            self.t("update_current_message", app_name=APP_NAME, current_version=VERSION),
+        )
+
+    def show_update_check_failed_dialog(self) -> None:
+        QMessageBox.warning(
+            self,
+            self.t("update_check_failed"),
+            self.t("update_check_failed_message"),
+        )
+
+    def set_language(self, language: str) -> None:
+        if language not in LANGUAGES:
+            language = DEFAULT_LANGUAGE
+        if language == self.language:
+            return
+        self.language = language
+        self.settings.setValue("language", language)
+        self.translate_ui()
+
+    def set_theme(self, theme: str) -> None:
+        if theme not in {"light", "dark"}:
+            theme = "light"
+        if theme == self.current_theme:
+            self._sync_theme_combo()
+            return
+        self.current_theme = theme
+        self.settings.setValue("theme", theme)
+        self._sync_theme_combo()
+        self.apply_theme(theme)
+
+    def translate_ui(self) -> None:
+        direction = (
+            Qt.LayoutDirection.RightToLeft
+            if is_rtl(self.language)
+            else Qt.LayoutDirection.LeftToRight
+        )
+        self.setLayoutDirection(direction)
+        self.setWindowTitle(APP_NAME)
+
+        self.open_button.setText(self.t("open"))
+        self.detect_button.setText(self.t("auto_detect"))
+        self.apply_all_button.setText(self.t("apply_all"))
+        self.export_button.setText(self.t("export"))
+        self.print_button.setText(self.t("print"))
+        self.fit_view_button.setText(self.t("fit"))
+        self.page_field_label.setText(self.t("page"))
+        self.margin_field_label.setText(self.t("margin"))
+        self.kofi_label.setText(
+            f'<a href="{KOFI_URL}">{self.t("sponsor_kofi")}</a>'
+        )
+
+        self.theme_combo.blockSignals(True)
+        current_theme = self.current_theme
+        self.theme_combo.setItemText(0, self.t("theme_light"))
+        self.theme_combo.setItemText(1, self.t("theme_dark"))
+        index = self.theme_combo.findData(current_theme)
+        if index >= 0:
+            self.theme_combo.setCurrentIndex(index)
+        self.theme_combo.blockSignals(False)
+
+        for label, key in self.translatable_group_labels:
+            label.setText(self.t(key))
+
+        self.file_menu.setTitle(self.t("file_menu"))
+        self.open_action.setText(self.t("open"))
+        self.export_action.setText(self.t("export"))
+        self.print_action.setText(self.t("print"))
+        self.quit_action.setText(self.t("quit"))
+        self.view_menu.setTitle(self.t("menu_view"))
+        self.previous_page_action.setText(self.t("view_previous"))
+        self.next_page_action.setText(self.t("view_next"))
+        self.zoom_in_action.setText(self.t("zoom_in"))
+        self.zoom_out_action.setText(self.t("zoom_out"))
+        self.fit_view_action.setText(self.t("view_fit"))
+        self.tools_menu.setTitle(self.t("menu_tools"))
+        self.detect_action.setText(self.t("auto_detect"))
+        self.apply_all_action.setText(self.t("apply_all_action"))
+        self.settings_action.setText(self.t("settings"))
+        self.help_menu.setTitle(self.t("help_menu"))
+        self.check_updates_action.setText(self.t("check_updates"))
+        self.about_action.setText(self.t("about_app", app_name=APP_NAME))
+        if self.document is None:
+            self.status.showMessage(self.t("app_ready"))
 
     def _set_document_actions_enabled(self, enabled: bool) -> None:
         self.detect_button.setEnabled(enabled)
@@ -1147,7 +1526,7 @@ class MainWindow(QMainWindow):
     def open_pdf(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
             self,
-            "Choisir un PDF",
+            self.t("open"),
             str(Path.home()),
             "PDF (*.pdf)",
         )
@@ -1161,24 +1540,24 @@ class MainWindow(QMainWindow):
         try:
             document = fitz.open(path)
         except Exception as exc:  # pragma: no cover - GUI guard
-            QMessageBox.critical(self, "Ouverture impossible", str(exc))
-            self.status.showMessage("Impossible d'ouvrir le PDF.")
+            QMessageBox.critical(self, self.t("open_failed"), str(exc))
+            self.status.showMessage(self.t("open_failed"))
             return
 
         if document.page_count == 0:
             document.close()
-            QMessageBox.warning(self, "PDF vide", "Ce PDF ne contient aucune page.")
-            self.status.showMessage("PDF vide.")
+            QMessageBox.warning(self, self.t("empty_pdf"), self.t("empty_pdf_message"))
+            self.status.showMessage(self.t("empty_pdf_status"))
             return
 
         if document.needs_pass:
             document.close()
             QMessageBox.warning(
                 self,
-                "PDF protégé",
-                "Ce PDF est protégé par mot de passe. L'ouverture n'est pas encore prise en charge.",
+                self.t("password_pdf"),
+                self.t("password_pdf_message"),
             )
-            self.status.showMessage("PDF protégé par mot de passe.")
+            self.status.showMessage(self.t("password_pdf_status"))
             return
 
         self.pdf_path = path
@@ -1193,7 +1572,7 @@ class MainWindow(QMainWindow):
         self.page_label.setText(f"/ {self.document.page_count}")
         self._set_document_actions_enabled(True)
         self._update_navigation_buttons()
-        self.status.showMessage(f"PDF ouvert : {self.pdf_path.name}")
+        self.status.showMessage(self.t("opened_status", name=self.pdf_path.name))
         self.detect_labels()
 
     def close_document(self) -> None:
@@ -1222,9 +1601,9 @@ class MainWindow(QMainWindow):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             self.detected_rects = detect_all_pages(str(self.pdf_path), margin_pt=0)
-            self.status.showMessage("Zones détectées automatiquement.")
+            self.status.showMessage(self.t("detected"))
         except Exception as exc:  # pragma: no cover - GUI guard
-            QMessageBox.critical(self, "Detection impossible", str(exc))
+            QMessageBox.critical(self, self.t("detect_failed"), str(exc))
         finally:
             QApplication.restoreOverrideCursor()
         self.render_current_page()
@@ -1252,7 +1631,7 @@ class MainWindow(QMainWindow):
                 page_rect.y1 - margin,
             ).clipped(self.document[index].rect)
         self.detected_rects[index] = page_rect
-        self.status.showMessage("Zone corrigée pour la page courante.")
+        self.status.showMessage(self.t("zone_fixed_status"))
         self.render_current_page()
 
     def apply_current_crop_to_all_pages(self) -> None:
@@ -1266,7 +1645,7 @@ class MainWindow(QMainWindow):
             current.clipped(self.document[index].rect)
             for index in range(self.document.page_count)
         ]
-        self.status.showMessage("Zone courante appliquée à toutes les pages.")
+        self.status.showMessage(self.t("zone_all_status"))
         self.render_current_page()
 
     def current_page_index(self) -> int:
@@ -1406,7 +1785,7 @@ class MainWindow(QMainWindow):
         default_name = self.pdf_path.with_name(f"{self.pdf_path.stem}_cropped.pdf")
         filename, _ = QFileDialog.getSaveFileName(
             self,
-            "Enregistrer le PDF recadré",
+            self.t("export_title"),
             str(default_name),
             "PDF (*.pdf)",
         )
@@ -1414,7 +1793,7 @@ class MainWindow(QMainWindow):
             return None
 
         output_path = crop_pdf(self.pdf_path, filename, self.effective_rects())
-        self.status.showMessage(f"PDF recadré enregistré : {output_path}")
+        self.status.showMessage(self.t("exported_status", path=output_path))
         return output_path
 
     def print_cropped(self) -> None:
@@ -1485,8 +1864,8 @@ class MainWindow(QMainWindow):
         if not painter.begin(printer):
             QMessageBox.critical(
                 self,
-                "Impression impossible",
-                "Impossible de démarrer l'impression avec cette imprimante.",
+                self.t("print_failed"),
+                self.t("print_failed_start"),
             )
             return
 
@@ -1513,22 +1892,22 @@ class MainWindow(QMainWindow):
         if painted_pages == 0:
             QMessageBox.critical(
                 self,
-                "Impression impossible",
-                "Aucune page n'a pu être dessinée pour l'impression.",
+                self.t("print_failed"),
+                self.t("print_no_pages"),
             )
-            self.status.showMessage("Aucune page imprimable générée.")
+            self.status.showMessage(self.t("print_no_pages_status"))
             return
 
         if printer.printerState() == QPrinter.PrinterState.Error:
             QMessageBox.critical(
                 self,
-                "Impression refusée",
-                "Le pilote d'imprimante a refusé le travail. Vérifiez que le format papier sélectionné correspond au rouleau/étiquette installé.",
+                self.t("print_refused"),
+                self.t("print_refused_message"),
             )
-            self.status.showMessage("Impression refusée par le pilote.")
+            self.status.showMessage(self.t("print_refused_status"))
             return
 
-        self.status.showMessage("Travail transmis au système d'impression.")
+        self.status.showMessage(self.t("print_status"))
 
     def paint_print_page(
         self,
@@ -1678,9 +2057,7 @@ class MainWindow(QMainWindow):
 
     def on_theme_changed(self) -> None:
         theme = self.theme_combo.currentData()
-        if theme not in {"light", "dark"}:
-            theme = "light"
-        self.apply_theme(theme)
+        self.set_theme(theme)
 
     def apply_theme(self, theme: str) -> None:
         self.current_theme = theme
@@ -1730,6 +2107,10 @@ class MainWindow(QMainWindow):
             }}
             QLabel {{
                 color: {text};
+            }}
+            QLabel#aboutNote {{
+                color: {secondary};
+                font-size: 12px;
             }}
             QLabel#logoLabel {{
                 background: transparent;
@@ -1853,6 +2234,15 @@ class MainWindow(QMainWindow):
                 color: {secondary};
                 border-top: 1px solid {border};
             }}
+            QLabel#kofiSponsorLabel {{
+                color: {PIXO_TEAL};
+                padding: 0 8px;
+                font-weight: 700;
+            }}
+            QLabel#kofiSponsorLabel a {{
+                color: {PIXO_TEAL};
+                text-decoration: none;
+            }}
             QDialog {{
                 background: {background};
                 color: {text};
@@ -1897,11 +2287,13 @@ class MainWindow(QMainWindow):
 
 def main() -> int:
     app = QApplication(sys.argv)
+    app.setOrganizationName("PixoGlace")
     app.setApplicationName(APP_NAME)
     app.setWindowIcon(themed_icon())
     window = MainWindow()
     window.show()
     window._refresh_theme_assets_after_show()
+    QTimer.singleShot(1200, window.check_for_updates_on_startup)
     return app.exec()
 
 
