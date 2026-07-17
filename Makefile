@@ -50,7 +50,7 @@ PYINSTALLER_ASSETS := --add-data "assets$(ADD_DATA_SEP)assets"
 PYINSTALLER_ICON := --icon "$(ICON_FILE)"
 PYINSTALLER_COMMON := --noconfirm --clean --name "$(APP)" --hidden-import fitz $(PYINSTALLER_ASSETS) $(PYINSTALLER_ICON)
 
-.PHONY: venv install dev run test compile build package package-linux release release-current release-info release-macos release-linux release-windows release-all clean
+.PHONY: venv install dev check-venv run run-info test compile build package package-linux release release-current release-info release-macos release-linux release-windows release-all clean
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -63,8 +63,14 @@ dev: venv
 	$(PYTHON_BIN) -m pip install --upgrade pip
 	$(PYTHON_BIN) -m pip install -e ".[dev,build]"
 
-run:
-	$(PYTHON_BIN) -m pixocrop.app
+check-venv:
+	@test -x "$(PYTHON_BIN)" || (echo "Environnement virtuel introuvable. Lancez d'abord: make dev" && exit 1)
+
+run: check-venv
+	PYTHONPATH="$(CURDIR)/src" $(PYTHON_BIN) -m pixocrop.app
+
+run-info: check-venv
+	PYTHONPATH="$(CURDIR)/src" $(PYTHON_BIN) -c "import pixocrop.app as app; print(app.__file__)"
 
 test:
 	$(PYTHON_BIN) -m pytest
