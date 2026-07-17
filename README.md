@@ -99,6 +99,13 @@ Le workflow GitHub Actions construit les binaires Linux, Windows et macOS.
 - Sur `push` et `pull_request`, les binaires sont construits et disponibles comme artefacts de workflow.
 - Sur un tag `v*`, une Release GitHub est creee automatiquement avec les archives telechargeables par la vitrine.
 
+Le workflow de developpement `.github/workflows/dev-build.yml` est separe :
+
+- il se lance uniquement lors d'un push vers une branche commencant par `dev`, par exemple `dev-med` ou `dev/impression` ;
+- il construit Linux, Windows, macOS Intel et macOS Apple Silicon sans publier de GitHub Release ;
+- ses artefacts portent le nom du compte ayant lance le push et sont supprimes apres 7 jours ;
+- leur acces suit les droits de lecture du depot. Un depot prive les reserve donc aux collaborateurs autorises. GitHub ne propose pas de restriction par artefact pour un depot public.
+
 Exemple :
 
 ```bash

@@ -1,0 +1,191 @@
+name: Dev binary builds
+run-name: Dev build - ${{ github.ref_name }} - ${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - "dev*"
+      - "dev/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  build-linux:
+    name: Dev Linux x86_64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+
+      - name: Build dev binaries
+        run: make release-linux
+
+      - name: Upload Linux dev binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-dev-linux-x86_64-${{ github.actor }}-${{ github.run_number }}
+          path: |
+            release/pixoCrop-linux-x86_64.tar.gz
+            release/pixocrop_*_amd64.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  build-windows:
+    name: Dev Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,build]"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Test
+        run: |
+          python -m compileall src tests
+          python -m pytest -q
+
+      - name: Build executable
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name "pixoCrop" --hidden-import fitz --add-data "assets;assets" --icon "assets/pixoCrop.ico" src/pixocrop/app.py
+
+      - name: Package dev binaries
+        shell: pwsh
+        run: |
+          python packaging/create_packaging_art.py
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path dist/pixoCrop -DestinationPath release/pixoCrop-windows-x64.zip -Force
+          $env:PIXO_APP_NAME = "pixoCrop"
+          $env:PIXO_APP_VERSION = python -c "from pixocrop.config import VERSION; print(VERSION)"
+          $env:PIXO_SOURCE_DIR = "$PWD\dist\pixoCrop"
+          $env:PIXO_OUTPUT_DIR = "$PWD\release"
+          $env:PIXO_ROOT_DIR = "$PWD"
+          $env:PIXO_WIZARD_IMAGE = "$PWD\build\packaging\windows-wizard.bmp"
+          $env:PIXO_WIZARD_SMALL_IMAGE = "$PWD\build\packaging\windows-small.bmp"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "packaging\windows\pixoCrop.iss"
+
+      - name: Upload Windows dev binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-dev-windows-x64-${{ github.actor }}-${{ github.run_number }}
+          path: |
+            release/pixoCrop-windows-x64.zip
+            release/pixoCrop-windows-x64-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  build-macos:
+    name: Dev macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,build]"
+
+      - name: Install DMG tooling
+        run: brew install create-dmg
+
+      - name: Verify runner architecture
+        run: |
+          actual_arch="$(uname -m)"
+          expected_arch="${{ matrix.arch }}"
+          echo "Runner architecture: ${actual_arch}"
+          test "${actual_arch}" = "${expected_arch}"
+
+      - name: Test
+        run: |
+          python -m compileall src tests
+          python -m pytest -q
+
+      - name: Build app bundle
+        run: |
+          app_version="$(PYTHONPATH=src python -c 'from pixocrop.config import VERSION; print(VERSION)')"
+          python -m PyInstaller --noconfirm --clean --windowed --name "pixoCrop" --hidden-import fitz --add-data "assets:assets" --icon "assets/pixoCrop.icns" --osx-bundle-identifier "io.github.pixoglace.pixocrop" src/pixocrop/app.py
+          plutil -replace CFBundleDisplayName -string "pixoCrop" "dist/pixoCrop.app/Contents/Info.plist"
+          plutil -replace CFBundleShortVersionString -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
+
+      - name: Package dev binaries
+        run: |
+          python packaging/create_packaging_art.py
+          mkdir -p release
+          ditto -c -k --sequesterRsrc --keepParent "dist/pixoCrop.app" "release/pixoCrop-macos-${{ matrix.arch }}.zip"
+          rm -rf "build/dmg-stage"
+          mkdir -p "build/dmg-stage"
+          cp -R "dist/pixoCrop.app" "build/dmg-stage/pixoCrop.app"
+          create-dmg \
+            --volname "PixoCrop Dev" \
+            --volicon "assets/pixoCrop.icns" \
+            --background "assets/dmg/pixocrop-dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 660 420 \
+            --text-size 13 \
+            --icon-size 112 \
+            --icon "pixoCrop.app" 128 255 \
+            --hide-extension "pixoCrop.app" \
+            --app-drop-link 515 255 \
+            --hdiutil-quiet \
+            --no-internet-enable \
+            "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
+            "build/dmg-stage"
+
+      - name: Upload macOS dev binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-dev-macos-${{ matrix.arch }}-${{ github.actor }}-${{ github.run_number }}
+          path: |
+            release/pixoCrop-macos-${{ matrix.arch }}.zip
+            release/pixoCrop-macos-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+          retention-days: 7
