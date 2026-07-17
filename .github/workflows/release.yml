@@ -33,13 +33,18 @@ jobs:
       - name: Build release
         run: make release-linux
 
-      - name: Upload Linux artifact
+      - name: Upload Linux portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-linux-x86_64
-          path: |
-            release/pixoCrop-linux-x86_64.tar.gz
-            release/pixocrop_*_amd64.deb
+          name: pixoCrop-linux-x86_64-portable
+          path: release/pixoCrop-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+      - name: Upload Linux Debian artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-linux-amd64-deb
+          path: release/pixocrop_*_amd64.deb
           if-no-files-found: error
 
   build-windows:
@@ -87,13 +92,18 @@ jobs:
           $env:PIXO_WIZARD_SMALL_IMAGE = "$PWD\build\packaging\windows-small.bmp"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "packaging\windows\pixoCrop.iss"
 
-      - name: Upload Windows artifact
+      - name: Upload Windows portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-windows-x64
-          path: |
-            release/pixoCrop-windows-x64.zip
-            release/pixoCrop-windows-x64-setup.exe
+          name: pixoCrop-windows-x64-portable
+          path: release/pixoCrop-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-windows-x64-installer
+          path: release/pixoCrop-windows-x64-setup.exe
           if-no-files-found: error
 
   build-macos:
@@ -169,13 +179,18 @@ jobs:
             "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
             "release/dmg-root-${{ matrix.arch }}"
 
-      - name: Upload macOS artifact
+      - name: Upload macOS portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-macos-${{ matrix.arch }}
-          path: |
-            release/pixoCrop-macos-${{ matrix.arch }}.zip
-            release/pixoCrop-macos-${{ matrix.arch }}.dmg
+          name: pixoCrop-macos-${{ matrix.arch }}-portable
+          path: release/pixoCrop-macos-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+      - name: Upload macOS installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-macos-${{ matrix.arch }}-installer
+          path: release/pixoCrop-macos-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
   release:
@@ -192,6 +207,18 @@ jobs:
 
       - name: List release assets
         run: ls -lah release-assets
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          test -f release-assets/pixoCrop-linux-x86_64.tar.gz
+          compgen -G "release-assets/pixocrop_*_amd64.deb" > /dev/null
+          test -f release-assets/pixoCrop-windows-x64.zip
+          test -f release-assets/pixoCrop-windows-x64-setup.exe
+          test -f release-assets/pixoCrop-macos-arm64.zip
+          test -f release-assets/pixoCrop-macos-arm64.dmg
+          test -f release-assets/pixoCrop-macos-x86_64.zip
+          test -f release-assets/pixoCrop-macos-x86_64.dmg
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

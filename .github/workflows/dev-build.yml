@@ -40,13 +40,19 @@ jobs:
       - name: Build dev binaries
         run: make release-linux
 
-      - name: Upload Linux dev binaries
+      - name: Upload Linux portable dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-dev-linux-x86_64-${{ github.actor }}-${{ github.run_number }}
-          path: |
-            release/pixoCrop-linux-x86_64.tar.gz
-            release/pixocrop_*_amd64.deb
+          name: pixoCrop-dev-linux-x86_64-portable-${{ github.actor }}-${{ github.run_number }}
+          path: release/pixoCrop-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Linux Debian dev binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-dev-linux-amd64-deb-${{ github.actor }}-${{ github.run_number }}
+          path: release/pixocrop_*_amd64.deb
           if-no-files-found: error
           retention-days: 7
 
@@ -96,13 +102,19 @@ jobs:
           $env:PIXO_WIZARD_SMALL_IMAGE = "$PWD\build\packaging\windows-small.bmp"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "packaging\windows\pixoCrop.iss"
 
-      - name: Upload Windows dev binaries
+      - name: Upload Windows portable dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-dev-windows-x64-${{ github.actor }}-${{ github.run_number }}
-          path: |
-            release/pixoCrop-windows-x64.zip
-            release/pixoCrop-windows-x64-setup.exe
+          name: pixoCrop-dev-windows-x64-portable-${{ github.actor }}-${{ github.run_number }}
+          path: release/pixoCrop-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Windows installer dev binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-dev-windows-x64-installer-${{ github.actor }}-${{ github.run_number }}
+          path: release/pixoCrop-windows-x64-setup.exe
           if-no-files-found: error
           retention-days: 7
 
@@ -180,12 +192,18 @@ jobs:
             "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
             "build/dmg-stage"
 
-      - name: Upload macOS dev binaries
+      - name: Upload macOS portable dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-dev-macos-${{ matrix.arch }}-${{ github.actor }}-${{ github.run_number }}
-          path: |
-            release/pixoCrop-macos-${{ matrix.arch }}.zip
-            release/pixoCrop-macos-${{ matrix.arch }}.dmg
+          name: pixoCrop-dev-macos-${{ matrix.arch }}-portable-${{ github.actor }}-${{ github.run_number }}
+          path: release/pixoCrop-macos-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload macOS installer dev binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixoCrop-dev-macos-${{ matrix.arch }}-installer-${{ github.actor }}-${{ github.run_number }}
+          path: release/pixoCrop-macos-${{ matrix.arch }}.dmg
           if-no-files-found: error
           retention-days: 7
