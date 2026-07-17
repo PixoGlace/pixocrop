@@ -5,7 +5,7 @@
 
 #define AppVersion GetEnv("PIXO_APP_VERSION")
 #if AppVersion == ""
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 
 #define SourceDir GetEnv("PIXO_SOURCE_DIR")

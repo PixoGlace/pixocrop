@@ -1,22 +1,29 @@
-name: Build and release binaries
+name: Dev binary builds
+run-name: Dev build - ${{ github.ref_name }} - ${{ github.actor }}
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - "dev*"
+      - "dev/**"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: dev-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
   build-linux:
-    name: Build Linux x86_64
+    name: Dev Linux x86_64
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -30,28 +37,31 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
 
-      - name: Build release
+      - name: Build dev binaries
         run: make release-linux
 
-      - name: Upload Linux portable artifact
+      - name: Upload Linux portable dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-linux-x86_64-portable
+          name: pixoCrop-dev-linux-x86_64-portable-${{ github.actor }}-${{ github.run_number }}
           path: release/pixoCrop-linux-x86_64.tar.gz
           if-no-files-found: error
+          retention-days: 7
 
-      - name: Upload Linux Debian artifact
+      - name: Upload Linux Debian dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-linux-amd64-deb
+          name: pixoCrop-dev-linux-amd64-deb-${{ github.actor }}-${{ github.run_number }}
           path: release/pixocrop_*_amd64.deb
           if-no-files-found: error
+          retention-days: 7
 
   build-windows:
-    name: Build Windows x64
+    name: Dev Windows x64
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -77,7 +87,7 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name "pixoCrop" --hidden-import fitz --add-data "assets;assets" --icon "assets/pixoCrop.ico" src/pixocrop/app.py
 
-      - name: Package archive
+      - name: Package dev binaries
         shell: pwsh
         run: |
           python packaging/create_packaging_art.py
@@ -92,22 +102,24 @@ jobs:
           $env:PIXO_WIZARD_SMALL_IMAGE = "$PWD\build\packaging\windows-small.bmp"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "packaging\windows\pixoCrop.iss"
 
-      - name: Upload Windows portable artifact
+      - name: Upload Windows portable dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-windows-x64-portable
+          name: pixoCrop-dev-windows-x64-portable-${{ github.actor }}-${{ github.run_number }}
           path: release/pixoCrop-windows-x64.zip
           if-no-files-found: error
+          retention-days: 7
 
-      - name: Upload Windows installer artifact
+      - name: Upload Windows installer dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-windows-x64-installer
+          name: pixoCrop-dev-windows-x64-installer-${{ github.actor }}-${{ github.run_number }}
           path: release/pixoCrop-windows-x64-setup.exe
           if-no-files-found: error
+          retention-days: 7
 
   build-macos:
-    name: Build macOS ${{ matrix.arch }}
+    name: Dev macOS ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -117,8 +129,9 @@ jobs:
           - arch: arm64
             runner: macos-15
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -155,16 +168,16 @@ jobs:
           plutil -replace CFBundleShortVersionString -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
           plutil -replace CFBundleVersion -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
 
-      - name: Package archive
+      - name: Package dev binaries
         run: |
           python packaging/create_packaging_art.py
           mkdir -p release
           ditto -c -k --sequesterRsrc --keepParent "dist/pixoCrop.app" "release/pixoCrop-macos-${{ matrix.arch }}.zip"
-          rm -rf "release/dmg-root-${{ matrix.arch }}"
-          mkdir -p "release/dmg-root-${{ matrix.arch }}"
-          cp -R "dist/pixoCrop.app" "release/dmg-root-${{ matrix.arch }}/pixoCrop.app"
+          rm -rf "build/dmg-stage"
+          mkdir -p "build/dmg-stage"
+          cp -R "dist/pixoCrop.app" "build/dmg-stage/pixoCrop.app"
           create-dmg \
-            --volname "PixoCrop" \
+            --volname "PixoCrop Dev" \
             --volicon "assets/pixoCrop.icns" \
             --background "assets/dmg/pixocrop-dmg-background.png" \
             --window-pos 200 120 \
@@ -177,51 +190,20 @@ jobs:
             --hdiutil-quiet \
             --no-internet-enable \
             "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
-            "release/dmg-root-${{ matrix.arch }}"
+            "build/dmg-stage"
 
-      - name: Upload macOS portable artifact
+      - name: Upload macOS portable dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-macos-${{ matrix.arch }}-portable
+          name: pixoCrop-dev-macos-${{ matrix.arch }}-portable-${{ github.actor }}-${{ github.run_number }}
           path: release/pixoCrop-macos-${{ matrix.arch }}.zip
           if-no-files-found: error
+          retention-days: 7
 
-      - name: Upload macOS installer artifact
+      - name: Upload macOS installer dev binary
         uses: actions/upload-artifact@v4
         with:
-          name: pixoCrop-macos-${{ matrix.arch }}-installer
+          name: pixoCrop-dev-macos-${{ matrix.arch }}-installer-${{ github.actor }}-${{ github.run_number }}
           path: release/pixoCrop-macos-${{ matrix.arch }}.dmg
           if-no-files-found: error
-
-  release:
-    name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-linux, build-windows, build-macos]
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-          merge-multiple: true
-
-      - name: List release assets
-        run: ls -lah release-assets
-
-      - name: Verify release assets
-        shell: bash
-        run: |
-          test -f release-assets/pixoCrop-linux-x86_64.tar.gz
-          compgen -G "release-assets/pixocrop_*_amd64.deb" > /dev/null
-          test -f release-assets/pixoCrop-windows-x64.zip
-          test -f release-assets/pixoCrop-windows-x64-setup.exe
-          test -f release-assets/pixoCrop-macos-arm64.zip
-          test -f release-assets/pixoCrop-macos-arm64.dmg
-          test -f release-assets/pixoCrop-macos-x86_64.zip
-          test -f release-assets/pixoCrop-macos-x86_64.dmg
-
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/*
-          generate_release_notes: true
+          retention-days: 7
