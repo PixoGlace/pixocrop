@@ -139,7 +139,11 @@ jobs:
 
       - name: Build app bundle
         run: |
-          python -m PyInstaller --noconfirm --clean --windowed --name "pixoCrop" --hidden-import fitz --add-data "assets:assets" --icon "assets/pixoCrop.icns" src/pixocrop/app.py
+          app_version="$(PYTHONPATH=src python -c 'from pixocrop.config import VERSION; print(VERSION)')"
+          python -m PyInstaller --noconfirm --clean --windowed --name "pixoCrop" --hidden-import fitz --add-data "assets:assets" --icon "assets/pixoCrop.icns" --osx-bundle-identifier "io.github.pixoglace.pixocrop" src/pixocrop/app.py
+          plutil -replace CFBundleDisplayName -string "pixoCrop" "dist/pixoCrop.app/Contents/Info.plist"
+          plutil -replace CFBundleShortVersionString -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
 
       - name: Package archive
         run: |
@@ -149,17 +153,18 @@ jobs:
           rm -rf "release/dmg-root-${{ matrix.arch }}"
           mkdir -p "release/dmg-root-${{ matrix.arch }}"
           cp -R "dist/pixoCrop.app" "release/dmg-root-${{ matrix.arch }}/pixoCrop.app"
-          ln -s /Applications "release/dmg-root-${{ matrix.arch }}/Applications"
           create-dmg \
-            --volname "pixoCrop" \
+            --volname "PixoCrop" \
             --volicon "assets/pixoCrop.icns" \
-            --background "build/packaging/dmg-background.png" \
+            --background "assets/dmg/pixocrop-dmg-background.png" \
             --window-pos 200 120 \
-            --window-size 640 420 \
-            --icon-size 96 \
-            --icon "pixoCrop.app" 170 250 \
+            --window-size 660 420 \
+            --text-size 13 \
+            --icon-size 112 \
+            --icon "pixoCrop.app" 128 255 \
             --hide-extension "pixoCrop.app" \
-            --app-drop-link 470 250 \
+            --app-drop-link 515 255 \
+            --hdiutil-quiet \
             --no-internet-enable \
             "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
             "release/dmg-root-${{ matrix.arch }}"

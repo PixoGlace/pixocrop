@@ -8,7 +8,10 @@ BUILD_DIR := build
 DIST_DIR := dist
 RELEASE_DIR := release
 PACKAGING_BUILD_DIR := $(BUILD_DIR)/packaging
-DMG_BACKGROUND := $(PACKAGING_BUILD_DIR)/dmg-background.png
+DMG_STAGE := $(BUILD_DIR)/dmg-stage
+DMG_BACKGROUND := assets/dmg/pixocrop-dmg-background.png
+DMG_VOLUME_NAME := PixoCrop
+DMG_VOLUME_ICON = $(ICON_FILE)
 WINDOWS_WIZARD_IMAGE := $(PACKAGING_BUILD_DIR)/windows-wizard.bmp
 WINDOWS_SMALL_IMAGE := $(PACKAGING_BUILD_DIR)/windows-small.bmp
 LINUX_BANNER := $(PACKAGING_BUILD_DIR)/linux-banner.png
@@ -38,6 +41,7 @@ else ifeq ($(UNAME_S),Darwin)
 	ADD_DATA_SEP := :
 	ICON_FILE := assets/pixoCrop.icns
 	PYINSTALLER_MODE := --windowed
+	PYINSTALLER_PLATFORM_OPTIONS := --osx-bundle-identifier "io.github.pixoglace.pixocrop"
 else
 	PLATFORM := linux
 	ARCH := $(UNAME_M)
@@ -64,7 +68,7 @@ RELEASE_FILE := $(RELEASE_DIR)/$(RELEASE_NAME).$(RELEASE_EXT)
 PYINSTALLER := $(PYTHON_BIN) -m PyInstaller
 PYINSTALLER_ASSETS := --add-data "assets$(ADD_DATA_SEP)assets"
 PYINSTALLER_ICON := --icon "$(ICON_FILE)"
-PYINSTALLER_COMMON := --noconfirm --clean --name "$(APP)" --hidden-import fitz $(PYINSTALLER_ASSETS) $(PYINSTALLER_ICON)
+PYINSTALLER_COMMON := --noconfirm --clean --name "$(APP)" --hidden-import fitz $(PYINSTALLER_ASSETS) $(PYINSTALLER_ICON) $(PYINSTALLER_PLATFORM_OPTIONS)
 
 .PHONY: venv install dev check-venv run run-info test compile build packaging-assets package package-macos package-windows package-linux package-linux-deb release release-current release-info release-macos release-linux release-windows release-all clean
 
@@ -96,6 +100,11 @@ compile:
 
 build:
 	PYINSTALLER_CONFIG_DIR="$(PYINSTALLER_CONFIG_DIR)" $(PYINSTALLER) $(PYINSTALLER_COMMON) $(PYINSTALLER_MODE) src/pixocrop/app.py
+ifeq ($(PLATFORM),macos)
+	plutil -replace CFBundleDisplayName -string "$(APP)" "$(DIST_ARTIFACT)/Contents/Info.plist"
+	plutil -replace CFBundleShortVersionString -string "$(APP_VERSION)" "$(DIST_ARTIFACT)/Contents/Info.plist"
+	plutil -replace CFBundleVersion -string "$(APP_VERSION)" "$(DIST_ARTIFACT)/Contents/Info.plist"
+endif
 
 packaging-assets:
 	$(PYTHON_BIN) packaging/create_packaging_art.py
@@ -112,28 +121,37 @@ endif
 	@echo "Release creee: $(RELEASE_FILE)"
 
 package-macos: packaging-assets
-	rm -rf "$(RELEASE_STAGE)"
-	mkdir -p "$(RELEASE_STAGE)"
-	cp -R "$(DIST_ARTIFACT)" "$(RELEASE_STAGE)/$(APP).app"
-	ln -sf /Applications "$(RELEASE_STAGE)/Applications"
+	@test -d "$(DIST_ARTIFACT)" || (echo "Application macOS manquante: $(DIST_ARTIFACT)" && exit 1)
+	@test -s "$(ICON_FILE)" || (echo "Icone macOS manquante: $(ICON_FILE)" && exit 1)
+	@test -s "$(DMG_VOLUME_ICON)" || (echo "Icone du volume DMG manquante: $(DMG_VOLUME_ICON)" && exit 1)
+	@test -s "$(DMG_BACKGROUND)" || (echo "Arriere-plan DMG manquant: $(DMG_BACKGROUND)" && exit 1)
+	@test -s "$(DIST_ARTIFACT)/Contents/Resources/$(APP).icns" || (echo "Icone absente du bundle: $(DIST_ARTIFACT)/Contents/Resources/$(APP).icns" && exit 1)
+	rm -rf "$(DMG_STAGE)"
+	mkdir -p "$(DMG_STAGE)" "$(RELEASE_DIR)"
+	cp -R "$(DIST_ARTIFACT)" "$(DMG_STAGE)/$(APP).app"
+	rm -f "$(RELEASE_FILE)"
 	ditto -c -k --sequesterRsrc --keepParent "$(DIST_ARTIFACT)" "$(RELEASE_FILE)"
 	rm -f "$(DMG_FILE)"
-	if command -v create-dmg >/dev/null 2>&1; then \
+	@if command -v create-dmg >/dev/null 2>&1; then \
 		create-dmg \
-			--volname "$(APP)" \
-			--volicon "$(ICON_FILE)" \
+			--volname "$(DMG_VOLUME_NAME)" \
+			--volicon "$(DMG_VOLUME_ICON)" \
 			--background "$(DMG_BACKGROUND)" \
 			--window-pos 200 120 \
-			--window-size 640 420 \
-			--icon-size 96 \
-			--icon "$(APP).app" 170 250 \
+			--window-size 660 420 \
+			--text-size 13 \
+			--icon-size 112 \
+			--icon "$(APP).app" 128 255 \
 			--hide-extension "$(APP).app" \
-			--app-drop-link 470 250 \
+			--app-drop-link 515 255 \
+			--hdiutil-quiet \
 			--no-internet-enable \
 			"$(DMG_FILE)" \
-			"$(RELEASE_STAGE)"; \
+			"$(DMG_STAGE)"; \
 	else \
-		hdiutil create -volname "$(APP)" -srcfolder "$(RELEASE_STAGE)" -ov -format UDZO "$(DMG_FILE)"; \
+		echo "create-dmg absent, creation d'un DMG standard."; \
+		ln -sfn /Applications "$(DMG_STAGE)/Applications"; \
+		hdiutil create -volname "$(DMG_VOLUME_NAME)" -srcfolder "$(DMG_STAGE)" -ov -format UDZO "$(DMG_FILE)"; \
 	fi
 	@echo "DMG cree: $(DMG_FILE)"
 
