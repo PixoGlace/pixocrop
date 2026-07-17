@@ -2,10 +2,18 @@ PYTHON ?= python3
 VENV := .venv
 APP := pixoCrop
 APP_ID := pixocrop
+APP_VERSION := $(shell PYTHONPATH="$(CURDIR)/src" $(PYTHON) -c "from pixocrop.config import VERSION; print(VERSION)")
 PYINSTALLER_CONFIG_DIR := $(CURDIR)/.pyinstaller-cache
 BUILD_DIR := build
 DIST_DIR := dist
 RELEASE_DIR := release
+PACKAGING_BUILD_DIR := $(BUILD_DIR)/packaging
+DMG_BACKGROUND := $(PACKAGING_BUILD_DIR)/dmg-background.png
+WINDOWS_WIZARD_IMAGE := $(PACKAGING_BUILD_DIR)/windows-wizard.bmp
+WINDOWS_SMALL_IMAGE := $(PACKAGING_BUILD_DIR)/windows-small.bmp
+LINUX_BANNER := $(PACKAGING_BUILD_DIR)/linux-banner.png
+DMG_FILE = $(RELEASE_DIR)/$(APP)-macos-$(ARCH).dmg
+WINDOWS_INSTALLER := $(RELEASE_DIR)/$(APP)-windows-x64-setup.exe
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 UNAME_M := $(shell uname -m 2>/dev/null || echo unknown)
@@ -42,6 +50,14 @@ else
 	PYINSTALLER_MODE := --onefile --windowed
 endif
 
+DEB_ARCH := $(ARCH)
+ifeq ($(ARCH),x86_64)
+	DEB_ARCH := amd64
+else ifeq ($(ARCH),aarch64)
+	DEB_ARCH := arm64
+endif
+DEB_FILE := $(RELEASE_DIR)/$(APP_ID)_$(APP_VERSION)_$(DEB_ARCH).deb
+
 RELEASE_NAME := $(APP)-$(PLATFORM)-$(ARCH)
 RELEASE_STAGE := $(RELEASE_DIR)/$(RELEASE_NAME)
 RELEASE_FILE := $(RELEASE_DIR)/$(RELEASE_NAME).$(RELEASE_EXT)
@@ -50,7 +66,7 @@ PYINSTALLER_ASSETS := --add-data "assets$(ADD_DATA_SEP)assets"
 PYINSTALLER_ICON := --icon "$(ICON_FILE)"
 PYINSTALLER_COMMON := --noconfirm --clean --name "$(APP)" --hidden-import fitz $(PYINSTALLER_ASSETS) $(PYINSTALLER_ICON)
 
-.PHONY: venv install dev check-venv run run-info test compile build package package-linux release release-current release-info release-macos release-linux release-windows release-all clean
+.PHONY: venv install dev check-venv run run-info test compile build packaging-assets package package-macos package-windows package-linux package-linux-deb release release-current release-info release-macos release-linux release-windows release-all clean
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -81,24 +97,60 @@ compile:
 build:
 	PYINSTALLER_CONFIG_DIR="$(PYINSTALLER_CONFIG_DIR)" $(PYINSTALLER) $(PYINSTALLER_COMMON) $(PYINSTALLER_MODE) src/pixocrop/app.py
 
+packaging-assets:
+	$(PYTHON_BIN) packaging/create_packaging_art.py
+
 package:
 	mkdir -p "$(RELEASE_DIR)"
 ifeq ($(PLATFORM),macos)
-	ditto -c -k --sequesterRsrc --keepParent "$(DIST_ARTIFACT)" "$(RELEASE_FILE)"
+	$(MAKE) package-macos
 else ifeq ($(PLATFORM),windows)
-	$(PYTHON_BIN) -m zipfile -c "$(RELEASE_FILE)" "$(DIST_ARTIFACT)"
+	$(MAKE) package-windows
 else
 	$(MAKE) package-linux
 endif
 	@echo "Release creee: $(RELEASE_FILE)"
 
-package-linux:
+package-macos: packaging-assets
 	rm -rf "$(RELEASE_STAGE)"
-	mkdir -p "$(RELEASE_STAGE)/bin" "$(RELEASE_STAGE)/share/applications" "$(RELEASE_STAGE)/share/icons/hicolor/256x256/apps"
+	mkdir -p "$(RELEASE_STAGE)"
+	cp -R "$(DIST_ARTIFACT)" "$(RELEASE_STAGE)/$(APP).app"
+	ln -sf /Applications "$(RELEASE_STAGE)/Applications"
+	ditto -c -k --sequesterRsrc --keepParent "$(DIST_ARTIFACT)" "$(RELEASE_FILE)"
+	rm -f "$(DMG_FILE)"
+	if command -v create-dmg >/dev/null 2>&1; then \
+		create-dmg \
+			--volname "$(APP)" \
+			--volicon "$(ICON_FILE)" \
+			--background "$(DMG_BACKGROUND)" \
+			--window-pos 200 120 \
+			--window-size 640 420 \
+			--icon-size 96 \
+			--icon "$(APP).app" 170 250 \
+			--hide-extension "$(APP).app" \
+			--app-drop-link 470 250 \
+			--no-internet-enable \
+			"$(DMG_FILE)" \
+			"$(RELEASE_STAGE)"; \
+	else \
+		hdiutil create -volname "$(APP)" -srcfolder "$(RELEASE_STAGE)" -ov -format UDZO "$(DMG_FILE)"; \
+	fi
+	@echo "DMG cree: $(DMG_FILE)"
+
+package-windows: packaging-assets
+	$(PYTHON_BIN) -m zipfile -c "$(RELEASE_FILE)" "$(DIST_ARTIFACT)"
+	PIXO_APP_NAME="$(APP)" PIXO_APP_VERSION="$(APP_VERSION)" PIXO_SOURCE_DIR="$(CURDIR)/$(DIST_ARTIFACT)" PIXO_OUTPUT_DIR="$(CURDIR)/$(RELEASE_DIR)" PIXO_ROOT_DIR="$(CURDIR)" PIXO_WIZARD_IMAGE="$(CURDIR)/$(WINDOWS_WIZARD_IMAGE)" PIXO_WIZARD_SMALL_IMAGE="$(CURDIR)/$(WINDOWS_SMALL_IMAGE)" iscc packaging/windows/pixoCrop.iss
+	@echo "Installateur Windows cree: $(WINDOWS_INSTALLER)"
+
+package-linux: packaging-assets
+	rm -rf "$(RELEASE_STAGE)"
+	mkdir -p "$(RELEASE_STAGE)/bin" "$(RELEASE_STAGE)/share/applications" "$(RELEASE_STAGE)/share/icons/hicolor/256x256/apps" "$(RELEASE_STAGE)/share/metainfo" "$(RELEASE_STAGE)/share/pixocrop"
 	cp "$(DIST_ARTIFACT)" "$(RELEASE_STAGE)/$(APP)"
 	chmod +x "$(RELEASE_STAGE)/$(APP)"
 	ln -sf "../$(APP)" "$(RELEASE_STAGE)/bin/$(APP)"
 	cp "$(ICON_FILE)" "$(RELEASE_STAGE)/share/icons/hicolor/256x256/apps/$(APP_ID).png"
+	cp "packaging/linux/io.github.pixoglace.pixocrop.metainfo.xml" "$(RELEASE_STAGE)/share/metainfo/io.github.pixoglace.pixocrop.metainfo.xml"
+	cp "$(LINUX_BANNER)" "$(RELEASE_STAGE)/share/pixocrop/banner.png"
 	printf '%s\n' \
 		'[Desktop Entry]' \
 		'Type=Application' \
@@ -125,6 +177,39 @@ package-linux:
 		'Puis lancer avec: $(APP)' \
 		> "$(RELEASE_STAGE)/README-linux.txt"
 	tar -czf "$(RELEASE_FILE)" -C "$(RELEASE_DIR)" "$(RELEASE_NAME)"
+	$(MAKE) package-linux-deb
+
+package-linux-deb:
+	rm -rf "$(RELEASE_DIR)/deb-root"
+	mkdir -p "$(RELEASE_DIR)/deb-root/DEBIAN" "$(RELEASE_DIR)/deb-root/opt/$(APP)" "$(RELEASE_DIR)/deb-root/usr/bin" "$(RELEASE_DIR)/deb-root/usr/share/applications" "$(RELEASE_DIR)/deb-root/usr/share/icons/hicolor/256x256/apps" "$(RELEASE_DIR)/deb-root/usr/share/metainfo" "$(RELEASE_DIR)/deb-root/usr/share/pixocrop"
+	cp "$(DIST_ARTIFACT)" "$(RELEASE_DIR)/deb-root/opt/$(APP)/$(APP)"
+	chmod 755 "$(RELEASE_DIR)/deb-root/opt/$(APP)/$(APP)"
+	ln -sf "/opt/$(APP)/$(APP)" "$(RELEASE_DIR)/deb-root/usr/bin/$(APP)"
+	cp "$(ICON_FILE)" "$(RELEASE_DIR)/deb-root/usr/share/icons/hicolor/256x256/apps/$(APP_ID).png"
+	cp "packaging/linux/io.github.pixoglace.pixocrop.metainfo.xml" "$(RELEASE_DIR)/deb-root/usr/share/metainfo/io.github.pixoglace.pixocrop.metainfo.xml"
+	cp "$(LINUX_BANNER)" "$(RELEASE_DIR)/deb-root/usr/share/pixocrop/banner.png"
+	printf '%s\n' \
+		'[Desktop Entry]' \
+		'Type=Application' \
+		'Name=pixoCrop' \
+		'Comment=Detecter, recadrer et imprimer des bordereaux PDF' \
+		'Exec=pixoCrop' \
+		'Icon=$(APP_ID)' \
+		'Terminal=false' \
+		'Categories=Utility;Graphics;Office;' \
+		'MimeType=application/pdf;' \
+		> "$(RELEASE_DIR)/deb-root/usr/share/applications/$(APP_ID).desktop"
+	printf '%s\n' \
+		'Package: $(APP_ID)' \
+		'Version: $(APP_VERSION)' \
+		'Section: utils' \
+		'Priority: optional' \
+		'Architecture: $(DEB_ARCH)' \
+		'Maintainer: PixoGlace' \
+		'Description: Detecter, recadrer et imprimer des bordereaux PDF' \
+		> "$(RELEASE_DIR)/deb-root/DEBIAN/control"
+	dpkg-deb --build "$(RELEASE_DIR)/deb-root" "$(DEB_FILE)"
+	@echo "Paquet DEB cree: $(DEB_FILE)"
 
 release: clean dev compile test build package
 
@@ -136,6 +221,7 @@ release-info:
 	@echo "Mode PyInstaller    : $(PYINSTALLER_MODE)"
 	@echo "Artefact PyInstaller: $(DIST_ARTIFACT)"
 	@echo "Archive release     : $(RELEASE_FILE)"
+	@echo "Version application : $(APP_VERSION)"
 
 release-macos:
 	@test "$(PLATFORM)" = "macos" || (echo "Cette target doit etre lancee sur macOS. Plateforme courante: $(PLATFORM)" && exit 1)
