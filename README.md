@@ -69,7 +69,8 @@ make release-linux
 ```
 
 Sur Linux, la release genere un executable autonome avec PyInstaller en mode `--onefile`.
-L'archive finale est placee dans `release/` et contient :
+La release genere aussi un paquet Debian `.deb`. L'archive finale est placee
+dans `release/` et contient :
 
 - `pixoCrop`, l'executable complet a double-cliquer apres extraction ;
 - `bin/pixoCrop`, un lien vers l'executable pour l'installation locale ;
@@ -77,6 +78,19 @@ L'archive finale est placee dans `release/` et contient :
 - l'icone de l'application ;
 - `README-linux.txt` avec les commandes d'installation locale optionnelle.
 
+Sur macOS, la release produit aussi un `.dmg` avec l'application et un lien
+vers `/Applications`. Sur Windows, la CI produit un installateur `.exe` avec
+Inno Setup.
+
+Le design des paquets est genere au moment du packaging par
+`packaging/create_packaging_art.py` :
+
+- fond du DMG macOS ;
+- images de l'assistant d'installation Windows ;
+- banniere/metadonnees visuelles Linux.
+
+La creation du DMG utilise `create-dmg` si l'outil est disponible, puis revient
+sur `hdiutil` en secours. L'installateur Windows utilise Inno Setup.
 
 ## CI/CD et releases GitHub
 
@@ -95,9 +109,13 @@ git push origin v0.1.0
 Archives publiees :
 
 - `pixoCrop-linux-x86_64.tar.gz`
+- `pixocrop_<version>_amd64.deb`
 - `pixoCrop-windows-x64.zip`
+- `pixoCrop-windows-x64-setup.exe`
 - `pixoCrop-macos-arm64.zip`
+- `pixoCrop-macos-arm64.dmg`
 - `pixoCrop-macos-x86_64.zip`
+- `pixoCrop-macos-x86_64.dmg`
 
 ## Site vitrine
 
