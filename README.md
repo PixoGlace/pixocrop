@@ -11,6 +11,43 @@ make dev
 make run
 ```
 
+Si `make run` ne montre pas les dernieres modifications, verifiez le fichier Python
+reellement lance avec :
+
+```bash
+make run-info
+```
+
+La commande doit afficher `src/pixocrop/app.py`.
+
+## Configuration principale
+
+Les informations principales du projet sont centralisees dans
+`src/pixocrop/config.py` :
+
+- nom de l'application ;
+- version ;
+- licence ;
+- lien du projet ;
+- lien et texte de donation.
+
+Les langues de l'interface sont configurees dans
+`src/pixocrop/language_config.py`. Les langues disponibles sont :
+
+- francais ;
+- anglais ;
+- arabe ;
+- chinois.
+
+L'utilisateur peut changer la langue depuis `Outils > Parametres`.
+
+## Mises a jour
+
+Au lancement, pixoCrop verifie silencieusement la derniere release GitHub via
+`UPDATE_CHECK_URL` dans `src/pixocrop/config.py`. Si une version plus recente
+que `VERSION` est disponible, l'application propose d'ouvrir la page de
+telechargement.
+
 ## Utilisation
 
 1. Ouvrir un PDF avec le bouton `Ouvrir PDF`, ou deposer directement un fichier PDF dans l'aperçu.
@@ -78,6 +115,8 @@ Pour la publier avec GitHub Pages :
 Si pixoCrop vous aide, vous pouvez soutenir le projet :
 
 [Buy Me a Coffee](https://www.buymeacoffee.com/pixoglace)
+
+Ces informations sont aussi accessibles dans l'application via `Aide > A propos de pixoCrop`.
 
 ## Licence
 
