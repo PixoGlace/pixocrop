@@ -32,7 +32,11 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QSplitter,
     QStatusBar,
+    QStyle,
+    QStyleOptionSpinBox,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -42,19 +46,14 @@ from pixocrop.detection import PdfRect, detect_all_pages
 from pixocrop.pdf_ops import crop_pdf
 from pixocrop.config import APP_NAME, DONATION_TEXT, DONATION_URL, KOFI_URL, PROJECT_LICENSE, PROJECT_URL, UPDATE_CHECK_URL, VERSION
 from pixocrop.language_config import DEFAULT_LANGUAGE, LANGUAGES, is_rtl, translate
+from pixocrop.theme import (
+    PIXO_AMBER,
+    PIXO_TEAL,
+    build_stylesheet,
+    theme_colors,
+)
 
 POINTS_PER_MM = 72 / 25.4
-PIXO_NAVY = "#172B4D"
-PIXO_TEAL = "#14B8A6"
-PIXO_AMBER = "#F59E0B"
-PIXO_DARK = "#0F172A"
-PIXO_WHITE = "#FFFFFF"
-PIXO_LIGHT_SECONDARY = "#64748B"
-PIXO_DARK_SECONDARY = "#CBD5E1"
-PIXO_LIGHT_PANEL = "#F8FAFC"
-PIXO_DARK_PANEL = "#111827"
-PIXO_LIGHT_BORDER = "#D7DEE8"
-PIXO_DARK_BORDER = "#253247"
 
 
 def app_root() -> Path:
@@ -143,14 +142,17 @@ class AboutDialog(QDialog):
 
         logo_label = QLabel()
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo = QPixmap(str(asset_path("title_white.png")))
+        theme = getattr(parent, "current_theme", "light")
+        logo_variant = "dark" if theme == "dark" else "white"
+        logo = QPixmap(str(asset_path(f"title_{logo_variant}.png")))
         if not logo.isNull():
-            logo_label.setPixmap(
-                logo.scaledToHeight(
-                    90,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+            ratio = max(1.0, self.devicePixelRatioF())
+            scaled_logo = logo.scaledToHeight(
+                int(76 * ratio),
+                Qt.TransformationMode.SmoothTransformation,
             )
+            scaled_logo.setDevicePixelRatio(ratio)
+            logo_label.setPixmap(scaled_logo)
         else:
             logo_label.setText(APP_NAME)
 
@@ -377,6 +379,63 @@ class PreviewView(QGraphicsView):
         super().wheelEvent(event)
 
 
+class StyledSpinBox(QSpinBox):
+    """Spin box with high-contrast chevrons independent of the platform style."""
+
+    def paintEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        super().paintEvent(event)
+
+        option = QStyleOptionSpinBox()
+        self.initStyleOption(option)
+        colors = theme_colors(self._theme_name())
+        glyph_color = colors.text if self.isEnabled() else colors.disabled_text
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(glyph_color), 1.8)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+
+        for subcontrol, points_up in (
+            (QStyle.SubControl.SC_SpinBoxUp, True),
+            (QStyle.SubControl.SC_SpinBoxDown, False),
+        ):
+            rect = self.style().subControlRect(
+                QStyle.ComplexControl.CC_SpinBox,
+                option,
+                subcontrol,
+                self,
+            )
+            if not rect.isValid() or rect.width() < 6 or rect.height() < 4:
+                continue
+
+            center = rect.center()
+            half_width = min(4.0, max(2.5, (rect.width() - 8) / 2))
+            rise = min(2.5, max(1.5, (rect.height() - 4) / 2))
+            base_y = center.y() + (rise / 2 if points_up else -rise / 2)
+            tip_y = center.y() + (-rise if points_up else rise)
+            painter.drawLine(
+                QPointF(center.x() - half_width, base_y),
+                QPointF(center.x(), tip_y),
+            )
+            painter.drawLine(
+                QPointF(center.x(), tip_y),
+                QPointF(center.x() + half_width, base_y),
+            )
+
+        painter.end()
+
+    def _theme_name(self) -> str:
+        parent: QWidget | None = self
+        while parent is not None:
+            theme = getattr(parent, "current_theme", None)
+            if theme in {"light", "dark"}:
+                return theme
+            parent = parent.parentWidget()
+        return "light"
+
+
 class PrintOptionsDialog(QDialog):
     PRINTER_DEFAULT = "printer_default"
 
@@ -426,16 +485,12 @@ class PrintOptionsDialog(QDialog):
 
     def _build_ui(self) -> None:
         self.preview_label = QLabel()
+        self.preview_label.setObjectName("printPreview")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumSize(520, 520)
-        self.preview_label.setStyleSheet(
-            f"""
-            QLabel {{
-                background: {PIXO_LIGHT_PANEL};
-                border: 1px solid {PIXO_LIGHT_BORDER};
-                border-radius: 12px;
-            }}
-            """
+        self.preview_label.setMinimumSize(360, 360)
+        self.preview_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
 
         self.printer_combo = self._create_printer_combo()
@@ -475,6 +530,7 @@ class PrintOptionsDialog(QDialog):
             self.t("print"),
             QDialogButtonBox.ButtonRole.AcceptRole,
         )
+        self.print_button.setObjectName("accentButton")
         self.print_button.setEnabled(bool(self.printers) and bool(self.rects))
 
         right_layout = QVBoxLayout()
@@ -482,14 +538,28 @@ class PrintOptionsDialog(QDialog):
         right_layout.addStretch()
         right_layout.addWidget(self.button_box)
 
+        options_widget = QWidget()
+        options_widget.setLayout(right_layout)
+        options_widget.setMinimumWidth(330)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(self.preview_label)
+        splitter.addWidget(options_widget)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setCollapsible(0, False)
+        splitter.setCollapsible(1, False)
+        splitter.setSizes([560, 340])
+
         layout = QHBoxLayout()
-        layout.addWidget(self.preview_label, 1)
-        layout.addLayout(right_layout)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.addWidget(splitter)
 
         self.setLayout(layout)
 
     def _create_printer_combo(self) -> QComboBox:
         combo = QComboBox()
+        self._configure_combo(combo, minimum_contents=24)
 
         if not self.printers:
             combo.addItem(self.t("no_printer"))
@@ -509,25 +579,27 @@ class PrintOptionsDialog(QDialog):
 
     def _create_page_combo(self) -> QComboBox:
         combo = QComboBox()
+        self._configure_combo(combo)
         combo.addItem(self.t("all_pages"), self.PAGE_ALL)
         combo.addItem(self.t("current_page"), self.PAGE_CURRENT)
         return combo
 
     def _create_preview_page_spin(self) -> QSpinBox:
-        spin = QSpinBox()
+        spin = StyledSpinBox()
         spin.setRange(1, max(1, len(self.rects)))
         spin.setValue(self.current_page + 1)
         spin.setEnabled(bool(self.rects))
         return spin
 
     def _create_copies_spin(self) -> QSpinBox:
-        spin = QSpinBox()
+        spin = StyledSpinBox()
         spin.setRange(1, 99)
         spin.setValue(1)
         return spin
 
     def _create_color_combo(self) -> QComboBox:
         combo = QComboBox()
+        self._configure_combo(combo)
         combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
         combo.addItem(self.t("color"), QPrinter.ColorMode.Color)
         combo.addItem(self.t("black_white"), QPrinter.ColorMode.GrayScale)
@@ -535,6 +607,7 @@ class PrintOptionsDialog(QDialog):
 
     def _create_paper_size_combo(self) -> QComboBox:
         combo = QComboBox()
+        self._configure_combo(combo, minimum_contents=22)
         self._populate_paper_size_combo(combo)
         return combo
 
@@ -580,6 +653,7 @@ class PrintOptionsDialog(QDialog):
 
     def _create_resolution_combo(self) -> QComboBox:
         combo = QComboBox()
+        self._configure_combo(combo)
         combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
         combo.addItem(self.t("quality_draft"), 150)
         combo.addItem(self.t("quality_standard"), 300)
@@ -588,6 +662,7 @@ class PrintOptionsDialog(QDialog):
 
     def _create_duplex_combo(self) -> QComboBox:
         combo = QComboBox()
+        self._configure_combo(combo)
         combo.addItem(self.t("printer_default"), self.PRINTER_DEFAULT)
         combo.addItem(self.t("duplex_none"), QPrinter.DuplexMode.DuplexNone)
         combo.addItem(self.t("duplex_long"), QPrinter.DuplexMode.DuplexLongSide)
@@ -595,12 +670,19 @@ class PrintOptionsDialog(QDialog):
         return combo
 
     def _create_zoom_spin(self) -> QSpinBox:
-        spin = QSpinBox()
+        spin = StyledSpinBox()
         spin.setRange(25, 300)
         spin.setSingleStep(5)
         spin.setValue(100)
         spin.setSuffix(" %")
         return spin
+
+    @staticmethod
+    def _configure_combo(combo: QComboBox, *, minimum_contents: int = 18) -> None:
+        combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        combo.setMinimumContentsLength(minimum_contents)
 
     def _create_orientation_selector(self) -> tuple[QButtonGroup, QWidget]:
         group = QButtonGroup(self)
@@ -609,11 +691,11 @@ class PrintOptionsDialog(QDialog):
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(0)
 
         buttons = [
             self.create_orientation_button(
-                self.t("orientation_default"), "auto", self.ORIENTATION_DEFAULT
+                self.t("orientation_default"), "default", self.ORIENTATION_DEFAULT
             ),
             self.create_orientation_button(self.t("orientation_auto"), "auto", self.ORIENTATION_AUTO),
             self.create_orientation_button(
@@ -624,7 +706,13 @@ class PrintOptionsDialog(QDialog):
             ),
         ]
 
-        for button in buttons:
+        for index, button in enumerate(buttons):
+            if index == 0:
+                button.setProperty("segmentPosition", "first")
+            elif index == len(buttons) - 1:
+                button.setProperty("segmentPosition", "last")
+            else:
+                button.setProperty("segmentPosition", "middle")
             group.addButton(button, button.property("orientation_id"))
             layout.addWidget(button)
 
@@ -639,33 +727,20 @@ class PrintOptionsDialog(QDialog):
         button_id: int,
     ) -> QToolButton:
         button = QToolButton()
+        button.setObjectName("orientationButton")
         button.setText(text)
+        button.setToolTip(text)
+        button.setAccessibleName(text)
         button.setIcon(self.orientation_icon(icon_kind))
-        button.setIconSize(QSize(42, 42))
-        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        button.setIconSize(QSize(30, 30))
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         button.setCheckable(True)
-        button.setMinimumSize(76, 74)
-        button.setProperty("orientation_id", button_id)
-        button.setStyleSheet(
-            f"""
-            QToolButton {{
-                border: 1px solid {PIXO_LIGHT_BORDER};
-                border-radius: 8px;
-                padding: 6px;
-                background: {PIXO_WHITE};
-                color: {PIXO_NAVY};
-            }}
-            QToolButton:hover {{
-                border-color: {PIXO_TEAL};
-                background: #ECFEFF;
-            }}
-            QToolButton:checked {{
-                border: 2px solid {PIXO_TEAL};
-                background: #CCFBF1;
-                padding: 5px;
-            }}
-            """
+        button.setMinimumSize(44, 44)
+        button.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
         )
+        button.setProperty("orientation_id", button_id)
         return button
 
     # ---------------------------------------------------------------------
@@ -867,20 +942,30 @@ class PrintOptionsDialog(QDialog):
     # ---------------------------------------------------------------------
 
     def orientation_icon(self, icon_kind: str) -> QIcon:
+        colors = theme_colors(self.window.current_theme)
         pixmap = QPixmap(64, 64)
         pixmap.fill(Qt.GlobalColor.transparent)
 
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor(95, 95, 95), 2))
-        painter.setBrush(QBrush(Qt.GlobalColor.white))
+        painter.setPen(QPen(QColor(colors.secondary), 2))
+        painter.setBrush(QBrush(QColor(colors.input_background)))
+
+        if icon_kind == "default":
+            painter.drawRoundedRect(QRect(12, 22, 40, 25), 3, 3)
+            painter.drawRect(QRect(20, 9, 24, 20))
+            painter.drawRect(QRect(20, 38, 24, 16))
+            painter.setBrush(QBrush(QColor(colors.accent)))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(QPointF(45, 30), 2.5, 2.5)
+            painter.end()
+            return QIcon(pixmap)
 
         if icon_kind == "auto":
-            painter.setBrush(QBrush(QColor(248, 248, 248)))
             painter.drawRoundedRect(QRect(12, 18, 26, 34), 3, 3)
             painter.drawRoundedRect(QRect(25, 12, 30, 24), 3, 3)
 
-            painter.setPen(QPen(QColor(36, 116, 216), 3))
+            painter.setPen(QPen(QColor(colors.accent), 3))
             painter.drawLine(24, 44, 42, 26)
             painter.drawLine(42, 26, 42, 36)
             painter.drawLine(42, 26, 32, 26)
@@ -896,7 +981,7 @@ class PrintOptionsDialog(QDialog):
             line_y_values = (22, 31, 40)
 
         painter.drawRoundedRect(page_rect, 3, 3)
-        painter.setPen(QPen(QColor(120, 120, 120), 2))
+        painter.setPen(QPen(QColor(colors.secondary), 2))
 
         for line_y in line_y_values:
             painter.drawLine(
@@ -1079,6 +1164,7 @@ class MainWindow(QMainWindow):
         self.resize(1100, 780)
         self.settings = QSettings("PixoGlace", APP_NAME)
         self.language = self._load_language()
+        self.current_theme = self._load_theme()
         self.translatable_group_labels: list[tuple[QLabel, str]] = []
         self.update_checker: UpdateChecker | None = None
 
@@ -1095,19 +1181,13 @@ class MainWindow(QMainWindow):
 
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logoLabel")
-        self.logo_label.setFixedSize(64, 64)
+        self.logo_label.setFixedSize(48, 48)
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.title_logo_label = QLabel("pixoCrop")
         self.title_logo_label.setObjectName("titleLogoLabel")
-        self.title_logo_label.setMinimumSize(220, 64)
+        self.title_logo_label.setFixedSize(176, 48)
         self.title_logo_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-
-
-        self.theme_combo = QComboBox()
-        self.theme_combo.setObjectName("themeCombo")
-        self.theme_combo.addItem("", "light")
-        self.theme_combo.addItem("", "dark")
 
         self.open_button = QPushButton()
         self.open_button.setObjectName("primaryButton")
@@ -1116,25 +1196,29 @@ class MainWindow(QMainWindow):
         self.export_button = QPushButton()
         self.print_button = QPushButton()
         self.print_button.setObjectName("accentButton")
-        self.previous_page_button = QPushButton("◀")
-        self.next_page_button = QPushButton("▶")
-        self.zoom_out_button = QPushButton("−")
-        self.zoom_in_button = QPushButton("+")
-        self.fit_view_button = QPushButton()
+        self.previous_page_button = self._compact_tool_button()
+        self.next_page_button = self._compact_tool_button()
+        self.zoom_out_button = self._compact_tool_button()
+        self.zoom_in_button = self._compact_tool_button()
+        self.fit_view_button = self._compact_tool_button()
         for compact_button in (
             self.previous_page_button,
             self.next_page_button,
             self.zoom_out_button,
             self.zoom_in_button,
+            self.fit_view_button,
         ):
-            compact_button.setFixedWidth(34)
-        self.page_spin = QSpinBox()
-        self.page_spin.setFixedWidth(58)
-        self.margin_spin = QSpinBox()
+            compact_button.setFixedSize(34, 34)
+            compact_button.setIconSize(QSize(20, 20))
+        self.page_spin = StyledSpinBox()
+        self.page_spin.setMinimumWidth(72)
+        self.page_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.margin_spin = StyledSpinBox()
         self.margin_spin.setRange(0, 30)
         self.margin_spin.setValue(3)
         self.margin_spin.setSuffix(" mm")
-        self.margin_spin.setFixedWidth(76)
+        self.margin_spin.setMinimumWidth(92)
+        self.margin_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.page_label = QLabel("/ 0")
         self.status = QStatusBar()
@@ -1144,13 +1228,11 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status)
         self.status.addPermanentWidget(self.kofi_label)
 
-        self.current_theme = self._load_theme()
         self.asset_directories = self._candidate_asset_directories()
         self._build_layout()
         self._build_menu()
         self._connect_signals()
         self._set_document_actions_enabled(False)
-        self._sync_theme_combo()
         self.translate_ui()
         self.apply_theme(self.current_theme)
         self.status.showMessage(self.t("app_ready"))
@@ -1165,14 +1247,6 @@ class MainWindow(QMainWindow):
     def _load_theme(self) -> str:
         theme = self.settings.value("theme", "light", str)
         return theme if theme in {"light", "dark"} else "light"
-
-    def _sync_theme_combo(self) -> None:
-        index = self.theme_combo.findData(self.current_theme)
-        if index < 0:
-            return
-        self.theme_combo.blockSignals(True)
-        self.theme_combo.setCurrentIndex(index)
-        self.theme_combo.blockSignals(False)
 
     def _toolbar_group(self, title_key: str, rows: list[list[QWidget]]) -> QWidget:
         group = QWidget()
@@ -1198,6 +1272,13 @@ class MainWindow(QMainWindow):
 
         return group
 
+    @staticmethod
+    def _compact_tool_button() -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("compactToolButton")
+        button.setAutoRaise(False)
+        return button
+
     def _build_layout(self) -> None:
         brand_text_layout = QVBoxLayout()
         brand_text_layout.setContentsMargins(0, 0, 0, 0)
@@ -1205,8 +1286,8 @@ class MainWindow(QMainWindow):
         brand_text_layout.addWidget(self.title_logo_label)
 
         header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(14, 10, 14, 10)
-        header_layout.setSpacing(12)
+        header_layout.setContentsMargins(10, 8, 10, 8)
+        header_layout.setSpacing(10)
         header_layout.addWidget(self.logo_label)
         header_layout.addLayout(brand_text_layout)
 
@@ -1215,11 +1296,9 @@ class MainWindow(QMainWindow):
 
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(0, 0, 0, 0)
-        toolbar.setSpacing(10)
+        toolbar.setSpacing(8)
 
-        self.page_field_label = QLabel()
-        self.margin_field_label = QLabel()
-
+        toolbar.addStretch(1)
         toolbar.addWidget(self._toolbar_group("toolbar_file", [[self.open_button], [self.export_button]]))
         toolbar.addWidget(self._toolbar_group("toolbar_detection", [[self.detect_button], [self.apply_all_button]]))
         toolbar.addWidget(
@@ -1227,20 +1306,19 @@ class MainWindow(QMainWindow):
                 "toolbar_page",
                 [
                     [self.previous_page_button, self.next_page_button],
-                    [self.page_field_label, self.page_spin, self.page_label],
+                    [self.page_spin, self.page_label],
                 ],
             )
         )
         toolbar.addWidget(
             self._toolbar_group(
                 "toolbar_view",
-                [[self.zoom_out_button, self.zoom_in_button], [self.fit_view_button]],
+                [[self.zoom_out_button, self.fit_view_button, self.zoom_in_button]],
             )
         )
-        toolbar.addWidget(self._toolbar_group("margin", [[self.margin_field_label, self.margin_spin]]))
+        toolbar.addWidget(self._toolbar_group("margin", [[self.margin_spin]]))
         toolbar.addWidget(self._toolbar_group("toolbar_output", [[self.print_button]]))
-        toolbar.addWidget(self._toolbar_group("theme", [[self.theme_combo]]))
-        toolbar.addStretch()
+        toolbar.addStretch(1)
 
         self.toolbar_widget = QWidget()
         self.toolbar_widget.setObjectName("toolbarWidget")
@@ -1260,80 +1338,96 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
 
     def _build_menu(self) -> None:
-        self.file_menu = self.menuBar().addMenu("")
-        self.open_action = QAction("", self)
+        menu_bar = self.menuBar()
+        if sys.platform == "darwin":
+            menu_bar.setNativeMenuBar(True)
+
+        self.file_menu = menu_bar.addMenu(self.t("file_menu"))
+        self.open_action = QAction(self.t("open"), self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(self.open_pdf)
         self.file_menu.addAction(self.open_action)
 
-        self.export_action = QAction("", self)
+        self.export_action = QAction(self.t("export"), self)
         self.export_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.export_action.triggered.connect(self.export_cropped)
         self.file_menu.addAction(self.export_action)
 
-        self.print_action = QAction("", self)
+        self.print_action = QAction(self.t("print"), self)
         self.print_action.setShortcut(QKeySequence.StandardKey.Print)
         self.print_action.triggered.connect(self.print_cropped)
         self.file_menu.addAction(self.print_action)
 
-        self.file_menu.addSeparator()
+        if sys.platform != "darwin":
+            self.file_menu.addSeparator()
 
-        self.quit_action = QAction("", self)
+        self.quit_action = QAction(self.t("quit"), self)
+        self.quit_action.setObjectName("quitAction")
+        self.quit_action.setMenuRole(QAction.MenuRole.QuitRole)
         self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
         self.file_menu.addAction(self.quit_action)
 
-        self.view_menu = self.menuBar().addMenu("")
-        self.previous_page_action = QAction("", self)
+        self.view_menu = menu_bar.addMenu(self.t("menu_view"))
+        self.previous_page_action = QAction(self.t("view_previous"), self)
         self.previous_page_action.setShortcut(QKeySequence(Qt.Key.Key_PageUp))
         self.previous_page_action.triggered.connect(self.previous_page)
         self.view_menu.addAction(self.previous_page_action)
 
-        self.next_page_action = QAction("", self)
+        self.next_page_action = QAction(self.t("view_next"), self)
         self.next_page_action.setShortcut(QKeySequence(Qt.Key.Key_PageDown))
         self.next_page_action.triggered.connect(self.next_page)
         self.view_menu.addAction(self.next_page_action)
 
         self.view_menu.addSeparator()
 
-        self.zoom_in_action = QAction("", self)
+        self.zoom_in_action = QAction(self.t("zoom_in"), self)
         self.zoom_in_action.setShortcut(QKeySequence.StandardKey.ZoomIn)
         self.zoom_in_action.triggered.connect(lambda: self.zoom_view(1.15))
         self.view_menu.addAction(self.zoom_in_action)
 
-        self.zoom_out_action = QAction("", self)
+        self.zoom_out_action = QAction(self.t("zoom_out"), self)
         self.zoom_out_action.setShortcut(QKeySequence.StandardKey.ZoomOut)
         self.zoom_out_action.triggered.connect(lambda: self.zoom_view(0.87))
         self.view_menu.addAction(self.zoom_out_action)
 
-        self.fit_view_action = QAction("", self)
+        self.fit_view_action = QAction(self.t("view_fit"), self)
         self.fit_view_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_0))
         self.fit_view_action.triggered.connect(self.fit_current_page)
         self.view_menu.addAction(self.fit_view_action)
 
-        self.tools_menu = self.menuBar().addMenu("")
-        self.detect_action = QAction("", self)
+        self.tools_menu = menu_bar.addMenu(self.t("menu_tools"))
+        self.detect_action = QAction(self.t("auto_detect"), self)
         self.detect_action.setShortcut(QKeySequence("Ctrl+D"))
         self.detect_action.triggered.connect(self.detect_labels)
         self.tools_menu.addAction(self.detect_action)
 
-        self.apply_all_action = QAction("", self)
+        self.apply_all_action = QAction(self.t("apply_all_action"), self)
         self.apply_all_action.triggered.connect(self.apply_current_crop_to_all_pages)
         self.tools_menu.addAction(self.apply_all_action)
 
-        self.tools_menu.addSeparator()
-        self.settings_action = QAction("", self)
-        self.settings_action.setMenuRole(QAction.MenuRole.NoRole)
+        if sys.platform != "darwin":
+            self.tools_menu.addSeparator()
+        self.settings_action = QAction(self.t("menu_settings"), self)
+        self.settings_action.setObjectName("settingsAction")
+        self.settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.settings_action.setShortcut(QKeySequence("Ctrl+,"))
         self.settings_action.triggered.connect(self.show_settings_dialog)
         self.tools_menu.addAction(self.settings_action)
 
-        self.help_menu = self.menuBar().addMenu("")
-        self.check_updates_action = QAction("", self)
+        self.help_menu = menu_bar.addMenu(self.t("help_menu"))
+        self.check_updates_action = QAction(self.t("check_updates"), self)
         self.check_updates_action.triggered.connect(self.check_for_updates_manually)
         self.help_menu.addAction(self.check_updates_action)
 
-        self.help_menu.addSeparator()
-        self.about_action = QAction("", self)
+        if sys.platform != "darwin":
+            self.help_menu.addSeparator()
+        self.about_action = QAction(
+            self.t("about_app", app_name=APP_NAME),
+            self,
+        )
+        self.about_action.setObjectName("aboutAction")
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.show_about_dialog)
         self.help_menu.addAction(self.about_action)
 
@@ -1350,7 +1444,6 @@ class MainWindow(QMainWindow):
         self.fit_view_button.clicked.connect(self.fit_current_page)
         self.page_spin.valueChanged.connect(self._page_changed)
         self.margin_spin.valueChanged.connect(self.render_current_page)
-        self.theme_combo.currentIndexChanged.connect(self.on_theme_changed)
 
     def show_about_dialog(self) -> None:
         AboutDialog(self).exec()
@@ -1434,11 +1527,9 @@ class MainWindow(QMainWindow):
         if theme not in {"light", "dark"}:
             theme = "light"
         if theme == self.current_theme:
-            self._sync_theme_combo()
             return
         self.current_theme = theme
         self.settings.setValue("theme", theme)
-        self._sync_theme_combo()
         self.apply_theme(theme)
 
     def translate_ui(self) -> None:
@@ -1455,21 +1546,15 @@ class MainWindow(QMainWindow):
         self.apply_all_button.setText(self.t("apply_all"))
         self.export_button.setText(self.t("export"))
         self.print_button.setText(self.t("print"))
-        self.fit_view_button.setText(self.t("fit"))
-        self.page_field_label.setText(self.t("page"))
-        self.margin_field_label.setText(self.t("margin"))
-        self.kofi_label.setText(
-            f'<a href="{KOFI_URL}">{self.t("sponsor_kofi")}</a>'
-        )
-
-        self.theme_combo.blockSignals(True)
-        current_theme = self.current_theme
-        self.theme_combo.setItemText(0, self.t("theme_light"))
-        self.theme_combo.setItemText(1, self.t("theme_dark"))
-        index = self.theme_combo.findData(current_theme)
-        if index >= 0:
-            self.theme_combo.setCurrentIndex(index)
-        self.theme_combo.blockSignals(False)
+        self.previous_page_button.setToolTip(self.t("view_previous"))
+        self.next_page_button.setToolTip(self.t("view_next"))
+        self.zoom_out_button.setToolTip(self.t("zoom_out"))
+        self.zoom_in_button.setToolTip(self.t("zoom_in"))
+        self.fit_view_button.setToolTip(self.t("view_fit"))
+        self.margin_spin.setToolTip(self.t("margin"))
+        self.margin_spin.setAccessibleName(self.t("margin"))
+        self._update_kofi_label()
+        self._refresh_toolbar_icons()
 
         for label, key in self.translatable_group_labels:
             label.setText(self.t(key))
@@ -1488,7 +1573,7 @@ class MainWindow(QMainWindow):
         self.tools_menu.setTitle(self.t("menu_tools"))
         self.detect_action.setText(self.t("auto_detect"))
         self.apply_all_action.setText(self.t("apply_all_action"))
-        self.settings_action.setText(self.t("settings"))
+        self.settings_action.setText(self.t("menu_settings"))
         self.help_menu.setTitle(self.t("help_menu"))
         self.check_updates_action.setText(self.t("check_updates"))
         self.about_action.setText(self.t("about_app", app_name=APP_NAME))
@@ -2046,7 +2131,7 @@ class MainWindow(QMainWindow):
             self.logo_label.setText("P")
 
         if title_path is not None:
-            title_pixmap = self._pixmap_for_label(title_path, logical_height=56)
+            title_pixmap = self._pixmap_for_label(title_path, logical_height=42)
             if not title_pixmap.isNull():
                 self.title_logo_label.setText("")
                 self.title_logo_label.setPixmap(title_pixmap)
@@ -2055,228 +2140,78 @@ class MainWindow(QMainWindow):
         self.title_logo_label.setPixmap(QPixmap())
         self.title_logo_label.setText("pixoCrop")
 
-    def on_theme_changed(self) -> None:
-        theme = self.theme_combo.currentData()
-        self.set_theme(theme)
+    def _paint_toolbar_icon(self, icon_kind: str) -> QIcon:
+        colors = theme_colors(self.current_theme)
+        pixmap = QPixmap(48, 48)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(colors.text), 3)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+
+        if icon_kind in {"zoom_in", "zoom_out"}:
+            painter.drawEllipse(QRect(8, 8, 25, 25))
+            painter.drawLine(30, 30, 41, 41)
+            painter.drawLine(14, 20, 27, 20)
+            if icon_kind == "zoom_in":
+                painter.drawLine(20, 14, 20, 27)
+        elif icon_kind == "fit":
+            for first, second in (
+                ((8, 18), (8, 8)),
+                ((8, 8), (18, 8)),
+                ((30, 8), (40, 8)),
+                ((40, 8), (40, 18)),
+                ((40, 30), (40, 40)),
+                ((40, 40), (30, 40)),
+                ((18, 40), (8, 40)),
+                ((8, 40), (8, 30)),
+            ):
+                painter.drawLine(*first, *second)
+
+        painter.end()
+        return QIcon(pixmap)
+
+    def _update_kofi_label(self) -> None:
+        link_color = theme_colors(self.current_theme).link
+        self.kofi_label.setText(
+            f'<a href="{KOFI_URL}" style="color:{link_color}; '
+            f'text-decoration:none">{self.t("sponsor_kofi")}</a>'
+        )
+
+    def _refresh_toolbar_icons(self) -> None:
+        rtl = self.layoutDirection() == Qt.LayoutDirection.RightToLeft
+        previous_icon = (
+            QStyle.StandardPixmap.SP_ArrowRight
+            if rtl
+            else QStyle.StandardPixmap.SP_ArrowLeft
+        )
+        next_icon = (
+            QStyle.StandardPixmap.SP_ArrowLeft
+            if rtl
+            else QStyle.StandardPixmap.SP_ArrowRight
+        )
+        self.previous_page_button.setIcon(self.style().standardIcon(previous_icon))
+        self.next_page_button.setIcon(self.style().standardIcon(next_icon))
+        self.zoom_out_button.setIcon(self._paint_toolbar_icon("zoom_out"))
+        self.zoom_in_button.setIcon(self._paint_toolbar_icon("zoom_in"))
+        self.fit_view_button.setIcon(self._paint_toolbar_icon("fit"))
+        self.open_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
+        )
+        self.export_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
+        )
 
     def apply_theme(self, theme: str) -> None:
         self.current_theme = theme
-        is_dark = theme == "dark"
-
-        background = PIXO_DARK if is_dark else PIXO_WHITE
-        panel = PIXO_DARK_PANEL if is_dark else PIXO_LIGHT_PANEL
-        panel_alt = "#1E293B" if is_dark else "#FFFFFF"
-        text = PIXO_WHITE if is_dark else PIXO_NAVY
-        secondary = PIXO_DARK_SECONDARY if is_dark else PIXO_LIGHT_SECONDARY
-        border = PIXO_DARK_BORDER if is_dark else PIXO_LIGHT_BORDER
-        input_background = "#0B1220" if is_dark else "#FFFFFF"
-        disabled_background = "#1F2937" if is_dark else "#EEF2F7"
-        disabled_text = "#64748B" if is_dark else "#94A3B8"
-        preview_background = "#0B1220" if is_dark else "#EEF2F7"
-        menu_background = "#111827" if is_dark else "#FFFFFF"
-        menu_selection = "#134E4A" if is_dark else "#CCFBF1"
-        menu_selection_text = PIXO_WHITE if is_dark else PIXO_NAVY
-
-        self.setStyleSheet(
-            f"""
-            QMainWindow {{
-                background: {background};
-                color: {text};
-            }}
-            QWidget#rootWidget {{
-                background: {background};
-                color: {text};
-            }}
-            QWidget#headerWidget {{
-                background: {panel};
-                border: 1px solid {border};
-                border-radius: 16px;
-            }}
-            QWidget#toolbarWidget {{
-                background: transparent;
-                border: 0;
-            }}
-            QWidget#toolbarGroup {{
-                background: transparent;
-            }}
-            QLabel#toolbarGroupTitle {{
-                color: {secondary};
-                font-size: 11px;
-                font-weight: 700;
-                text-transform: uppercase;
-            }}
-            QLabel {{
-                color: {text};
-            }}
-            QLabel#aboutNote {{
-                color: {secondary};
-                font-size: 12px;
-            }}
-            QLabel#logoLabel {{
-                background: transparent;
-                border: 0;
-                color: {PIXO_TEAL};
-                font-size: 24px;
-                font-weight: 800;
-            }}
-            QLabel#titleLogoLabel {{
-                color: {text};
-                font-size: 26px;
-                font-weight: 800;
-                letter-spacing: .4px;
-            }}
-            QLabel#subtitleLabel {{
-                color: {secondary};
-                font-size: 12px;
-            }}
-            QGraphicsView {{
-                background: {preview_background};
-                border: 1px solid {border};
-                border-radius: 16px;
-            }}
-            QPushButton {{
-                background: {panel_alt};
-                color: {text};
-                border: 1px solid {border};
-                border-radius: 8px;
-                padding: 6px 10px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{
-                border-color: {PIXO_TEAL};
-                color: {PIXO_TEAL};
-            }}
-            QPushButton:pressed {{
-                background: {menu_selection};
-            }}
-            QPushButton:disabled {{
-                background: {disabled_background};
-                color: {disabled_text};
-                border-color: {border};
-            }}
-            QPushButton#primaryButton {{
-                background: {PIXO_NAVY};
-                color: {PIXO_WHITE};
-                border-color: {PIXO_NAVY};
-            }}
-            QPushButton#primaryButton:hover {{
-                background: #1D3A66;
-                border-color: {PIXO_TEAL};
-                color: {PIXO_WHITE};
-            }}
-            QPushButton#accentButton {{
-                background: {PIXO_TEAL};
-                color: {PIXO_WHITE};
-                border-color: {PIXO_TEAL};
-            }}
-            QPushButton#accentButton:hover {{
-                background: #0F9F91;
-                border-color: {PIXO_AMBER};
-                color: {PIXO_WHITE};
-            }}
-            QComboBox, QSpinBox {{
-                background: {input_background};
-                color: {text};
-                border: 1px solid {border};
-                border-radius: 8px;
-                padding: 6px 8px;
-                selection-background-color: {PIXO_TEAL};
-                selection-color: {PIXO_WHITE};
-            }}
-            QComboBox:focus, QSpinBox:focus {{
-                border: 1px solid {PIXO_AMBER};
-            }}
-            QComboBox::drop-down {{
-                border: 0;
-                width: 22px;
-            }}
-            QComboBox QAbstractItemView {{
-                background: {menu_background};
-                color: {text};
-                border: 1px solid {border};
-                border-radius: 6px;
-                outline: 0;
-                padding: 4px;
-                selection-background-color: {menu_selection};
-                selection-color: {menu_selection_text};
-            }}
-            QComboBox QAbstractItemView::item {{
-                min-height: 26px;
-                padding: 4px 8px;
-            }}
-            QComboBox QAbstractItemView::item:selected {{
-                background: {menu_selection};
-                color: {menu_selection_text};
-            }}
-            QComboBox QAbstractItemView::item:disabled {{
-                color: {disabled_text};
-                background: {disabled_background};
-            }}
-            QMenuBar {{
-                background: {background};
-                color: {text};
-            }}
-            QMenuBar::item:selected {{
-                background: {menu_selection};
-                color: {text};
-            }}
-            QMenu {{
-                background: {menu_background};
-                color: {text};
-                border: 1px solid {border};
-            }}
-            QMenu::item:selected {{
-                background: {menu_selection};
-                color: {text};
-            }}
-            QStatusBar {{
-                background: {panel};
-                color: {secondary};
-                border-top: 1px solid {border};
-            }}
-            QLabel#kofiSponsorLabel {{
-                color: {PIXO_TEAL};
-                padding: 0 8px;
-                font-weight: 700;
-            }}
-            QLabel#kofiSponsorLabel a {{
-                color: {PIXO_TEAL};
-                text-decoration: none;
-            }}
-            QDialog {{
-                background: {background};
-                color: {text};
-            }}
-            QGroupBox {{
-                color: {text};
-                border: 1px solid {border};
-                border-radius: 12px;
-                margin-top: 12px;
-                padding: 10px;
-                font-weight: 700;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px;
-                color: {PIXO_TEAL};
-            }}
-            QCheckBox {{
-                color: {text};
-                spacing: 8px;
-            }}
-            QCheckBox::indicator:checked {{
-                background: {PIXO_TEAL};
-                border: 1px solid {PIXO_TEAL};
-            }}
-            QCheckBox::indicator:unchecked {{
-                background: {input_background};
-                border: 1px solid {border};
-            }}
-            """
-        )
+        self.setStyleSheet(build_stylesheet(theme))
+        self._refresh_toolbar_icons()
+        self._update_kofi_label()
         self._load_brand_assets()
-        
+
     def _refresh_theme_assets_after_show(self) -> None:
         self._load_brand_assets()
 
@@ -2289,6 +2224,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setOrganizationName("PixoGlace")
     app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
     app.setWindowIcon(themed_icon())
     window = MainWindow()
     window.show()
