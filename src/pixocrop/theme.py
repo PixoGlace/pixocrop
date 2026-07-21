@@ -129,6 +129,20 @@ def build_stylesheet(theme: str) -> str:
             border: 1px solid {colors.border};
             border-radius: 8px;
         }}
+        QFrame#cropHint {{
+            background: {colors.panel_alt};
+            border: 1px solid {colors.accent};
+            border-radius: 7px;
+        }}
+        QLabel#cropHintIcon {{
+            background: transparent;
+            border: 0;
+        }}
+        QLabel#cropHintText {{
+            background: transparent;
+            color: {colors.text};
+            font-weight: 600;
+        }}
         QGraphicsView {{
             background: {colors.preview_background};
             border: 1px solid {colors.border};

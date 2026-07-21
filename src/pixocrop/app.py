@@ -260,6 +260,10 @@ class SettingsDialog(QDialog):
 
 
 class PreviewView(QGraphicsView):
+    HANDLE_SIZE_PX = 8.0
+    HANDLE_HIT_RADIUS_PX = 10.0
+    MIN_CROP_SIZE = 8.0
+
     def __init__(self, window: "MainWindow") -> None:
         super().__init__()
         self.window = window
@@ -268,12 +272,127 @@ class PreviewView(QGraphicsView):
         self.selection_item: QGraphicsRectItem | None = None
         self.move_start: QPointF | None = None
         self.move_original: QRectF | None = None
+        self.resize_handle: str | None = None
         self.setRenderHint(QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.NoDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setAcceptDrops(True)
+        self.setMouseTracking(True)
         self.viewport().setAcceptDrops(True)
+        self.viewport().setMouseTracking(True)
         self.viewport().installEventFilter(self)
+
+        self.crop_hint = QFrame(self.viewport())
+        self.crop_hint.setObjectName("cropHint")
+        self.crop_hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+        hint_layout = QHBoxLayout(self.crop_hint)
+        hint_layout.setContentsMargins(10, 7, 12, 7)
+        hint_layout.setSpacing(8)
+
+        hint_icon = QLabel()
+        hint_icon.setObjectName("cropHintIcon")
+        hint_icon.setFixedSize(26, 26)
+        hint_icon.setPixmap(self._crop_hint_icon())
+        hint_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_layout.addWidget(hint_icon)
+
+        self.crop_hint_text = QLabel()
+        self.crop_hint_text.setObjectName("cropHintText")
+        self.crop_hint_text.setWordWrap(True)
+        hint_layout.addWidget(self.crop_hint_text)
+
+        self.crop_hint_timer = QTimer(self)
+        self.crop_hint_timer.setSingleShot(True)
+        self.crop_hint_timer.timeout.connect(self.hide_crop_hint)
+        self.crop_hint.hide()
+
+    @staticmethod
+    def _crop_hint_icon() -> QPixmap:
+        pixmap = QPixmap(26, 26)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(PIXO_TEAL), 1.8, Qt.PenStyle.DashLine)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawRoundedRect(QRect(3, 4, 20, 17), 2, 2)
+        painter.setPen(QPen(QColor(PIXO_TEAL), 1.8))
+        painter.drawLine(13, 1, 13, 8)
+        painter.drawLine(9, 4, 17, 4)
+        painter.end()
+        return pixmap
+
+    def set_crop_hint_text(self, text: str) -> None:
+        self.crop_hint_text.setText(text)
+        self.setToolTip(text)
+        self.viewport().setToolTip(text)
+        self.setAccessibleDescription(text)
+        self._position_crop_hint()
+
+    def show_crop_hint(self) -> None:
+        if self.window.document is None:
+            return
+        self._position_crop_hint()
+        self.crop_hint.show()
+        self.crop_hint.raise_()
+        self.crop_hint_timer.start(9000)
+
+    def hide_crop_hint(self) -> None:
+        self.crop_hint_timer.stop()
+        self.crop_hint.hide()
+
+    def _position_crop_hint(self) -> None:
+        viewport_width = self.viewport().width()
+        if viewport_width <= 0:
+            return
+        hint_width = min(520, max(240, viewport_width - 32))
+        self.crop_hint_text.setMaximumWidth(max(180, hint_width - 58))
+        self.crop_hint.adjustSize()
+        x = max(16, (viewport_width - self.crop_hint.width()) // 2)
+        y = max(16, self.viewport().height() - self.crop_hint.height() - 18)
+        self.crop_hint.move(x, y)
+
+    def resizeEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        super().resizeEvent(event)
+        self._position_crop_hint()
+
+    def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
+        super().drawForeground(painter, rect)
+        crop_rect = self._visible_crop_rect()
+        if crop_rect is None:
+            return
+
+        unit = self._scene_units_per_view_pixel()
+        handle_size = self.HANDLE_SIZE_PX * unit
+        half = handle_size / 2
+        center = crop_rect.center()
+        handle_centers = (
+            crop_rect.topLeft(),
+            QPointF(center.x(), crop_rect.top()),
+            crop_rect.topRight(),
+            QPointF(crop_rect.right(), center.y()),
+            crop_rect.bottomRight(),
+            QPointF(center.x(), crop_rect.bottom()),
+            crop_rect.bottomLeft(),
+            QPointF(crop_rect.left(), center.y()),
+        )
+
+        pen = QPen(QColor(PIXO_TEAL), 1.5)
+        pen.setCosmetic(True)
+        painter.save()
+        painter.setPen(pen)
+        painter.setBrush(QBrush(QColor(255, 255, 255, 245)))
+        for point in handle_centers:
+            painter.drawRect(
+                QRectF(
+                    point.x() - half,
+                    point.y() - half,
+                    handle_size,
+                    handle_size,
+                )
+            )
+        painter.restore()
 
     def dragEnterEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if self.window.pdf_path_from_drop(event.mimeData()) is not None:
@@ -312,8 +431,16 @@ class PreviewView(QGraphicsView):
 
     def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if event.button() == Qt.LeftButton and self.window.document is not None:
+            self.hide_crop_hint()
             scene_pos = self.mapToScene(event.position().toPoint())
             current_rect = self.window.current_scene_rect()
+            resize_handle = self._resize_handle_at(scene_pos, current_rect)
+            if resize_handle is not None and current_rect is not None:
+                self.interaction_mode = "resize"
+                self.resize_handle = resize_handle
+                self.move_original = current_rect
+                self.setCursor(self._cursor_for_resize_handle(resize_handle))
+                return
             if current_rect is not None and current_rect.contains(scene_pos):
                 self.interaction_mode = "move"
                 self.move_start = scene_pos
@@ -322,6 +449,7 @@ class PreviewView(QGraphicsView):
                 return
 
             self.interaction_mode = "draw"
+            self.setCursor(Qt.CursorShape.CrossCursor)
             self.selection_start = scene_pos
             self.selection_item = self.scene().addRect(
                 QRectF(self.selection_start, self.selection_start),
@@ -344,7 +472,17 @@ class PreviewView(QGraphicsView):
             moved = self.window.clamp_scene_rect(self.move_original.translated(delta))
             if self.window.rect_item is not None:
                 self.window.rect_item.setRect(moved)
+                self.viewport().update()
             return
+
+        if self.interaction_mode == "resize" and self.move_original is not None and self.resize_handle is not None:
+            current = self.mapToScene(event.position().toPoint())
+            resized = self._resized_crop_rect(self.move_original, current, self.resize_handle)
+            if self.window.rect_item is not None:
+                self.window.rect_item.setRect(resized)
+                self.viewport().update()
+            return
+        self._update_hover_cursor(event.position().toPoint())
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
@@ -356,6 +494,7 @@ class PreviewView(QGraphicsView):
             self.selection_item = None
             if rect.width() >= 8 and rect.height() >= 8:
                 self.window.set_current_crop_from_scene(rect)
+            self._update_hover_cursor(event.position().toPoint())
             return
 
         if self.interaction_mode == "move" and self.move_start is not None and self.move_original is not None:
@@ -365,10 +504,104 @@ class PreviewView(QGraphicsView):
             self.interaction_mode = None
             self.move_start = None
             self.move_original = None
-            self.unsetCursor()
             self.window.set_current_crop_from_scene(rect)
+            self._update_hover_cursor(event.position().toPoint())
+            return
+        if self.interaction_mode == "resize" and self.move_original is not None and self.resize_handle is not None:
+            current = self.mapToScene(event.position().toPoint())
+            rect = self._resized_crop_rect(self.move_original, current, self.resize_handle)
+            self.interaction_mode = None
+            self.move_original = None
+            self.resize_handle = None
+            self.window.set_current_crop_from_scene(rect)
+            self._update_hover_cursor(event.position().toPoint())
             return
         super().mouseReleaseEvent(event)
+
+    def leaveEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self.interaction_mode is None:
+            self.unsetCursor()
+        super().leaveEvent(event)
+
+    def _update_hover_cursor(self, view_pos) -> None:  # type: ignore[no-untyped-def]
+        if self.window.document is None:
+            self.unsetCursor()
+            return
+        scene_pos = self.mapToScene(view_pos)
+        current_rect = self.window.current_scene_rect()
+        resize_handle = self._resize_handle_at(scene_pos, current_rect)
+        if resize_handle is not None:
+            self.setCursor(self._cursor_for_resize_handle(resize_handle))
+        elif current_rect is not None and current_rect.contains(scene_pos):
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        elif self.window.page_scene_rect().contains(scene_pos):
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.unsetCursor()
+
+    def _visible_crop_rect(self) -> QRectF | None:
+        if self.window.rect_item is not None:
+            return self.window.rect_item.rect()
+        return self.window.current_scene_rect()
+
+    def _scene_units_per_view_pixel(self) -> float:
+        scale = abs(self.transform().m11())
+        return 1.0 / max(scale, 0.001)
+
+    def _resize_handle_at(self, scene_pos: QPointF, rect: QRectF | None) -> str | None:
+        if rect is None:
+            return None
+        tolerance = self.HANDLE_HIT_RADIUS_PX * self._scene_units_per_view_pixel()
+        if not rect.adjusted(-tolerance, -tolerance, tolerance, tolerance).contains(scene_pos):
+            return None
+
+        horizontal_side: str | None = None
+        if rect.top() - tolerance <= scene_pos.y() <= rect.bottom() + tolerance:
+            left_distance = abs(scene_pos.x() - rect.left())
+            right_distance = abs(scene_pos.x() - rect.right())
+            if min(left_distance, right_distance) <= tolerance:
+                horizontal_side = "left" if left_distance <= right_distance else "right"
+
+        vertical_side: str | None = None
+        if rect.left() - tolerance <= scene_pos.x() <= rect.right() + tolerance:
+            top_distance = abs(scene_pos.y() - rect.top())
+            bottom_distance = abs(scene_pos.y() - rect.bottom())
+            if min(top_distance, bottom_distance) <= tolerance:
+                vertical_side = "top" if top_distance <= bottom_distance else "bottom"
+
+        if horizontal_side is not None and vertical_side is not None:
+            return f"{vertical_side}_{horizontal_side}"
+        return horizontal_side or vertical_side
+
+    @staticmethod
+    def _cursor_for_resize_handle(handle: str) -> Qt.CursorShape:
+        if handle in {"left", "right"}:
+            return Qt.CursorShape.SizeHorCursor
+        if handle in {"top", "bottom"}:
+            return Qt.CursorShape.SizeVerCursor
+        if handle in {"top_left", "bottom_right"}:
+            return Qt.CursorShape.SizeFDiagCursor
+        return Qt.CursorShape.SizeBDiagCursor
+
+    def _resized_crop_rect(self, original: QRectF, scene_pos: QPointF, handle: str) -> QRectF:
+        bounds = self.window.page_scene_rect()
+        left = original.left()
+        top = original.top()
+        right = original.right()
+        bottom = original.bottom()
+        min_width = min(self.MIN_CROP_SIZE, bounds.width())
+        min_height = min(self.MIN_CROP_SIZE, bounds.height())
+
+        if "left" in handle:
+            left = min(max(scene_pos.x(), bounds.left()), right - min_width)
+        elif "right" in handle:
+            right = max(min(scene_pos.x(), bounds.right()), left + min_width)
+        if "top" in handle:
+            top = min(max(scene_pos.y(), bounds.top()), bottom - min_height)
+        elif "bottom" in handle:
+            bottom = max(min(scene_pos.y(), bounds.bottom()), top + min_height)
+
+        return QRectF(QPointF(left, top), QPointF(right, bottom))
 
     def wheelEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if event.modifiers() & Qt.ControlModifier:
@@ -1196,14 +1429,10 @@ class MainWindow(QMainWindow):
         self.export_button = QPushButton()
         self.print_button = QPushButton()
         self.print_button.setObjectName("accentButton")
-        self.previous_page_button = self._compact_tool_button()
-        self.next_page_button = self._compact_tool_button()
         self.zoom_out_button = self._compact_tool_button()
         self.zoom_in_button = self._compact_tool_button()
         self.fit_view_button = self._compact_tool_button()
         for compact_button in (
-            self.previous_page_button,
-            self.next_page_button,
             self.zoom_out_button,
             self.zoom_in_button,
             self.fit_view_button,
@@ -1304,10 +1533,7 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(
             self._toolbar_group(
                 "toolbar_page",
-                [
-                    [self.previous_page_button, self.next_page_button],
-                    [self.page_spin, self.page_label],
-                ],
+                [[self.page_spin, self.page_label]],
             )
         )
         toolbar.addWidget(
@@ -1437,8 +1663,6 @@ class MainWindow(QMainWindow):
         self.apply_all_button.clicked.connect(self.apply_current_crop_to_all_pages)
         self.export_button.clicked.connect(self.export_cropped)
         self.print_button.clicked.connect(self.print_cropped)
-        self.previous_page_button.clicked.connect(self.previous_page)
-        self.next_page_button.clicked.connect(self.next_page)
         self.zoom_out_button.clicked.connect(lambda: self.zoom_view(0.87))
         self.zoom_in_button.clicked.connect(lambda: self.zoom_view(1.15))
         self.fit_view_button.clicked.connect(self.fit_current_page)
@@ -1546,13 +1770,12 @@ class MainWindow(QMainWindow):
         self.apply_all_button.setText(self.t("apply_all"))
         self.export_button.setText(self.t("export"))
         self.print_button.setText(self.t("print"))
-        self.previous_page_button.setToolTip(self.t("view_previous"))
-        self.next_page_button.setToolTip(self.t("view_next"))
         self.zoom_out_button.setToolTip(self.t("zoom_out"))
         self.zoom_in_button.setToolTip(self.t("zoom_in"))
         self.fit_view_button.setToolTip(self.t("view_fit"))
         self.margin_spin.setToolTip(self.t("margin"))
         self.margin_spin.setAccessibleName(self.t("margin"))
+        self.preview.set_crop_hint_text(self.t("crop_draw_hint"))
         self._update_kofi_label()
         self._refresh_toolbar_icons()
 
@@ -1585,8 +1808,6 @@ class MainWindow(QMainWindow):
         self.apply_all_button.setEnabled(enabled)
         self.export_button.setEnabled(enabled)
         self.print_button.setEnabled(enabled)
-        self.previous_page_button.setEnabled(enabled)
-        self.next_page_button.setEnabled(enabled)
         self.zoom_out_button.setEnabled(enabled)
         self.zoom_in_button.setEnabled(enabled)
         self.fit_view_button.setEnabled(enabled)
@@ -1659,6 +1880,7 @@ class MainWindow(QMainWindow):
         self._update_navigation_buttons()
         self.status.showMessage(self.t("opened_status", name=self.pdf_path.name))
         self.detect_labels()
+        self.preview.show_crop_hint()
 
     def close_document(self) -> None:
         if self.document is not None:
@@ -1669,6 +1891,7 @@ class MainWindow(QMainWindow):
         self.auto_fit_view = True
         self.scene.clear()
         self.rect_item = None
+        self.preview.hide_crop_hint()
 
     def pdf_path_from_drop(self, mime_data) -> Path | None:  # type: ignore[no-untyped-def]
         if not mime_data.hasUrls():
@@ -1816,9 +2039,6 @@ class MainWindow(QMainWindow):
         has_document = self.document is not None
         can_go_previous = has_document and self.page_spin.value() > self.page_spin.minimum()
         can_go_next = has_document and self.page_spin.value() < self.page_spin.maximum()
-
-        self.previous_page_button.setEnabled(can_go_previous)
-        self.next_page_button.setEnabled(can_go_next)
 
         if hasattr(self, "previous_page_action"):
             self.previous_page_action.setEnabled(can_go_previous)
@@ -2182,19 +2402,6 @@ class MainWindow(QMainWindow):
         )
 
     def _refresh_toolbar_icons(self) -> None:
-        rtl = self.layoutDirection() == Qt.LayoutDirection.RightToLeft
-        previous_icon = (
-            QStyle.StandardPixmap.SP_ArrowRight
-            if rtl
-            else QStyle.StandardPixmap.SP_ArrowLeft
-        )
-        next_icon = (
-            QStyle.StandardPixmap.SP_ArrowLeft
-            if rtl
-            else QStyle.StandardPixmap.SP_ArrowRight
-        )
-        self.previous_page_button.setIcon(self.style().standardIcon(previous_icon))
-        self.next_page_button.setIcon(self.style().standardIcon(next_icon))
         self.zoom_out_button.setIcon(self._paint_toolbar_icon("zoom_out"))
         self.zoom_in_button.setIcon(self._paint_toolbar_icon("zoom_in"))
         self.fit_view_button.setIcon(self._paint_toolbar_icon("fit"))
