@@ -27,3 +27,6 @@ assets/._*
 
 # Local/private PDF samples
 data/*
+!data/anonymized/
+!data/anonymized/*.pdf
+!data/anonymized/README.md

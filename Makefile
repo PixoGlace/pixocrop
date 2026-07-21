@@ -70,7 +70,7 @@ PYINSTALLER_ASSETS := --add-data "assets$(ADD_DATA_SEP)assets"
 PYINSTALLER_ICON := --icon "$(ICON_FILE)"
 PYINSTALLER_COMMON := --noconfirm --clean --name "$(APP)" --hidden-import fitz $(PYINSTALLER_ASSETS) $(PYINSTALLER_ICON) $(PYINSTALLER_PLATFORM_OPTIONS)
 
-.PHONY: venv install dev check-venv run run-info test compile build packaging-assets package package-macos package-windows package-linux package-linux-deb release release-current release-info release-macos release-linux release-windows release-all clean
+.PHONY: venv install dev check-venv run run-info test compile demo-assets build packaging-assets package package-macos package-windows package-linux package-linux-deb release release-current release-info release-macos release-linux release-windows release-all clean
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -97,6 +97,9 @@ test:
 
 compile:
 	$(PYTHON_BIN) -m compileall src tests
+
+demo-assets: check-venv
+	PYTHONPATH="$(CURDIR)/src" $(PYTHON_BIN) tools/create_demo_assets.py
 
 build:
 	PYINSTALLER_CONFIG_DIR="$(PYINSTALLER_CONFIG_DIR)" $(PYINSTALLER) $(PYINSTALLER_COMMON) $(PYINSTALLER_MODE) src/pixocrop/app.py
