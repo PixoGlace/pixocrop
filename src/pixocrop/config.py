@@ -1,5 +1,5 @@
 APP_NAME = "pixoCrop"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 PROJECT_LICENSE = "GNU GPL v3"
 PROJECT_URL = "https://github.com/PixoGlace/pixoCrop"
