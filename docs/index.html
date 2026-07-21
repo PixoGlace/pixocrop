@@ -36,9 +36,9 @@
                 <span>PixoCrop</span>
             </a>
             <nav aria-label="Navigation principale">
-                <a href="#fonctionnalites" data-i18n="nav.features">Fonctions</a>
-                <a href="#installer" data-i18n="nav.install">Installer</a>
                 <a href="#telecharger" data-i18n="nav.download">Telecharger</a>
+                <a href="#fonctionnalites" data-i18n="nav.features">Fonctions</a>
+                <a href="#guide" data-i18n="nav.guide">Guide</a>
                 <a href="#proteger" data-i18n="nav.license">Licence</a>
                 <a href="https://github.com/PixoGlace/pixoCrop"
                     rel="me noopener">GitHub</a>
@@ -72,32 +72,118 @@
                     <p data-i18n="hero.copy">PixoCrop detecte la zone utile d'un PDF, la recadre
                         proprement et l'envoie a l'imprimante avec un apercu
                         clair.</p>
-                </div>
-
-                <div class="hero-world" aria-label="Apercu visuel de PixoCrop">
-                    <div class="hero-orbit hero-orbit-one"
-                        aria-hidden="true"></div>
-                    <div class="hero-orbit hero-orbit-two"
-                        aria-hidden="true"></div>
-                    <div class="app-shell">
-                        <img src="static/assets/pixocrop-preview.png"
-                            alt="Interface de PixoCrop avec apercu PDF">
+                    <div class="hero-actions">
+                        <a class="pill-button pill-primary" href="#telecharger"
+                            data-i18n="hero.download">Télécharger PixoCrop</a>
+                        <a class="hero-guide-link" href="#guide">
+                            <span data-i18n="hero.guide">Voir comment ça marche</span>
+                            <span aria-hidden="true">↓</span>
+                        </a>
                     </div>
-                    <span class="value-bubble bubble-open"><span data-i18n="hero.bubbleOpen">Open source</span> <b
-                            aria-hidden="true">⌁</b></span>
-                    <span class="value-bubble bubble-clear"><span data-i18n="hero.bubbleClear">Recadrage clair</span> <b
-                            aria-hidden="true">✦</b></span>
-                    <span class="value-bubble bubble-kind"><span data-i18n="hero.bubblePrint">Pret a imprimer</span> <b
-                            aria-hidden="true">↓</b></span>
-                    <span class="pixel pixel-one" aria-hidden="true"></span>
-                    <span class="pixel pixel-two" aria-hidden="true"></span>
-                    <span class="pixel pixel-three" aria-hidden="true"></span>
                 </div>
 
-                <a class="scroll-cue" href="#fonctionnalites">
-                    <span data-i18n="hero.scroll">Voir l'outil</span>
-                    <span aria-hidden="true">↓</span>
-                </a>
+                <div class="hero-demo-wrap">
+                    <div class="hero-demo">
+                        <picture>
+                            <source media="(prefers-reduced-motion: reduce)"
+                                srcset="static/assets/pixocrop-demo-poster.webp">
+                            <img src="static/assets/pixocrop-demo.webp"
+                                alt="Démonstration animée du recadrage et de l’impression avec PixoCrop"
+                                data-i18n-alt="demo.alt"
+                                width="960" height="669" decoding="async">
+                        </picture>
+                    </div>
+                    <span class="value-bubble bubble-open">
+                        <span data-i18n="hero.bubbleOpen">Open source</span>
+                        <b aria-hidden="true">⌁</b>
+                    </span>
+                    <span class="value-bubble bubble-clear">
+                        <span data-i18n="hero.bubbleClear">Clear cropping</span>
+                        <b aria-hidden="true">✦</b>
+                    </span>
+                    <span class="value-bubble bubble-ready">
+                        <span data-i18n="hero.bubblePrint">Ready to print</span>
+                        <b aria-hidden="true">↓</b>
+                    </span>
+                </div>
+            </section>
+
+            <section class="download-section" id="telecharger"
+                aria-labelledby="download-title">
+                <header class="section-heading">
+                    <p class="kicker" data-i18n="download.kicker">Binaires prets a lancer</p>
+                    <h2 id="download-title" data-i18n-html="download.title">Telechargez PixoCrop pour <em>votre
+                            plateforme.</em></h2>
+                    <p class="release-status" id="release-status" data-i18n="download.loading">Recherche de la derniere version...</p>
+                </header>
+
+                <div class="download-grid">
+                    <article class="download-card download-macos">
+                        <span class="download-mark" aria-hidden="true">×</span>
+                        <div class="download-copy">
+                            <p class="download-platform">macOS</p>
+                            <h3 data-i18n="download.macosTitle">DMG macOS</h3>
+                            <p data-i18n="download.macosCopy">Image DMG avec glisser-deposer vers Applications, plus archives ZIP de secours.</p>
+                        </div>
+                        <div class="download-actions" data-download-platform="macos">
+                            <a class="pill-button pill-primary asset-link"
+                                data-asset-pattern="macos-arm64.dmg"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-arm64.dmg"
+                                rel="noopener">DMG Apple Silicon <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern="macos-x86_64.dmg"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-x86_64.dmg"
+                                rel="noopener">DMG Intel <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern="macos-arm64.zip"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-arm64.zip"
+                                rel="noopener">ZIP arm64 <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern="macos-x86_64.zip"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-x86_64.zip"
+                                rel="noopener">ZIP Intel <span aria-hidden="true">↓</span></a>
+                        </div>
+                    </article>
+
+                    <article class="download-card download-windows">
+                        <span class="download-mark" aria-hidden="true">□</span>
+                        <div class="download-copy">
+                            <p class="download-platform">Windows</p>
+                            <h3 data-i18n="download.windowsTitle">Installateur Windows</h3>
+                            <p data-i18n="download.windowsCopy">Installateur graphique ou archive ZIP pour Windows x64.</p>
+                        </div>
+                        <div class="download-actions" data-download-platform="windows">
+                            <a class="pill-button pill-primary asset-link"
+                                data-asset-pattern="windows-x64-setup.exe"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-windows-x64-setup.exe"
+                                rel="noopener">Setup x64 <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern="windows-x64.zip"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-windows-x64.zip"
+                                rel="noopener">Windows x64 <span aria-hidden="true">↓</span></a>
+                        </div>
+                    </article>
+
+                    <article class="download-card download-linux">
+                        <span class="download-mark" aria-hidden="true">_</span>
+                        <div class="download-copy">
+                            <p class="download-platform">Linux</p>
+                            <h3 data-i18n="download.linuxTitle">Executable autonome</h3>
+                            <p data-i18n-html="download.linuxCopy">Archive <code>tar.gz</code> avec binaire a
+                                double-cliquer et fichier desktop.</p>
+                        </div>
+                        <div class="download-actions" data-download-platform="linux">
+                            <a class="pill-button pill-primary asset-link"
+                                data-asset-pattern="linux-x86_64.tar.gz"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-linux-x86_64.tar.gz"
+                                rel="noopener">Linux x86_64 <span aria-hidden="true">↓</span></a>
+                            <a class="pill-button pill-secondary asset-link"
+                                data-asset-pattern=".deb"
+                                href="https://github.com/PixoGlace/pixoCrop/releases/latest"
+                                rel="noopener">DEB amd64 <span aria-hidden="true">↓</span></a>
+                        </div>
+                    </article>
+                </div>
             </section>
 
             <section class="product-section" id="fonctionnalites"
@@ -130,14 +216,14 @@
                     </article>
                     <article class="feature-tile feature-lilac">
                         <span class="tile-number">04</span>
-                        <h3 data-i18n="features.releaseTitle">Release Linux</h3>
-                        <p data-i18n="features.releaseCopy">Generez un executable autonome a double-cliquer avec
-                            la cible <code>make release-linux</code>.</p>
+                        <h3 data-i18n="features.releaseTitle">Disponible partout</h3>
+                        <p data-i18n="features.releaseCopy">Utilisez PixoCrop sur macOS, Windows ou Linux avec
+                            un paquet prêt à installer.</p>
                     </article>
                 </div>
             </section>
 
-            <section class="workflow" aria-labelledby="workflow-title">
+            <section class="workflow" id="guide" aria-labelledby="workflow-title">
                 <div class="workflow-intro">
                     <p class="kicker" data-i18n="workflow.kicker">Documentation rapide</p>
                     <h2 id="workflow-title" data-i18n="workflow.title">De l'ouverture du PDF a l'etiquette
@@ -156,119 +242,6 @@
                             utilisez les parametres de l'imprimante ou vos
                             propres reglages.</p></li>
                 </ol>
-            </section>
-
-            <section class="install-panel" id="installer"
-                aria-labelledby="install-title">
-                <div class="terminal-card"
-                    aria-label="Commandes d'installation">
-                    <div class="terminal-bar"
-                        aria-hidden="true"><span></span><span></span><span></span></div>
-                    <pre><code>git clone https://github.com/PixoGlace/pixoCrop.git
-cd pixoCrop
-make dev
-make run</code></pre>
-                    <pre><code>make release-linux
-tar -xzf release/pixoCrop-linux-x86_64.tar.gz
-./pixoCrop-linux-x86_64/pixoCrop</code></pre>
-                </div>
-                <div class="install-copy">
-                    <p class="kicker" data-i18n="install.kicker">Installer et publier</p>
-                    <h2 id="install-title" data-i18n="install.title">Un depot pret pour GitHub Pages et
-                        les releases.</h2>
-                    <p data-i18n-html="install.copy">La vitrine vit dans <code>docs/</code>. Dans GitHub,
-                        activez Pages depuis la branche principale avec le
-                        dossier <code>/docs</code>.</p>
-                    <div class="actions">
-                        <a class="pill-button pill-primary"
-                            href="https://github.com/PixoGlace/pixoCrop/releases"
-                            rel="noopener"><span data-i18n="install.releases">Releases</span> <span
-                                aria-hidden="true">↗</span></a>
-                        <a class="pill-button pill-secondary"
-                            href="https://github.com/PixoGlace/pixoCrop"
-                            rel="noopener" data-i18n="install.source">Code source</a>
-                    </div>
-                </div>
-            </section>
-
-            <section class="download-section" id="telecharger"
-                aria-labelledby="download-title">
-                <header class="section-heading">
-                    <p class="kicker" data-i18n="download.kicker">Binaires prets a lancer</p>
-                    <h2 id="download-title" data-i18n-html="download.title">Telechargez PixoCrop pour <em>votre
-                            plateforme.</em></h2>
-                    <p class="release-status" id="release-status" data-i18n="download.loading">Recherche de la derniere version...</p>
-                </header>
-
-                <div class="download-grid">
-                    <article class="download-card download-linux">
-                        <span class="download-mark" aria-hidden="true">_</span>
-                        <div class="download-copy">
-                            <p class="download-platform">Linux</p>
-                            <h3 data-i18n="download.linuxTitle">Executable autonome</h3>
-                            <p data-i18n-html="download.linuxCopy">Archive <code>tar.gz</code> avec binaire a
-                                double-cliquer et fichier desktop.</p>
-                        </div>
-                        <div class="download-actions" data-download-platform="linux">
-                        <a class="pill-button pill-primary asset-link"
-                            data-asset-pattern="linux-x86_64.tar.gz"
-                            href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-linux-x86_64.tar.gz"
-                            rel="noopener">Linux x86_64 <span
-                                aria-hidden="true">↓</span></a>
-                        <a class="pill-button pill-secondary asset-link"
-                            data-asset-pattern=".deb"
-                            href="https://github.com/PixoGlace/pixoCrop/releases/latest"
-                            rel="noopener">DEB amd64 <span aria-hidden="true">↓</span></a>
-                        </div>
-                    </article>
-
-                    <article class="download-card download-windows">
-                        <span class="download-mark" aria-hidden="true">□</span>
-                        <div class="download-copy">
-                            <p class="download-platform">Windows</p>
-                            <h3 data-i18n="download.windowsTitle">Installateur Windows</h3>
-                            <p data-i18n="download.windowsCopy">Installateur graphique ou archive ZIP pour Windows x64.</p>
-                        </div>
-                        <div class="download-actions" data-download-platform="windows">
-                        <a class="pill-button pill-primary asset-link"
-                            data-asset-pattern="windows-x64-setup.exe"
-                            href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-windows-x64-setup.exe"
-                            rel="noopener">Setup x64 <span aria-hidden="true">↓</span></a>
-                        <a class="pill-button pill-secondary asset-link"
-                            data-asset-pattern="windows-x64.zip"
-                            href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-windows-x64.zip"
-                            rel="noopener">Windows x64 <span
-                                aria-hidden="true">↓</span></a>
-                        </div>
-                    </article>
-
-                    <article class="download-card download-macos">
-                        <span class="download-mark" aria-hidden="true">×</span>
-                        <div class="download-copy">
-                            <p class="download-platform">macOS</p>
-                            <h3 data-i18n="download.macosTitle">DMG macOS</h3>
-                            <p data-i18n="download.macosCopy">Image DMG avec glisser-deposer vers Applications, plus archives ZIP de secours.</p>
-                        </div>
-                        <div class="download-actions">
-                            <a class="pill-button pill-primary asset-link"
-                                data-asset-pattern="macos-arm64.dmg"
-                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-arm64.dmg"
-                                rel="noopener">DMG Apple Silicon <span aria-hidden="true">↓</span></a>
-                            <a class="pill-button pill-secondary asset-link"
-                                data-asset-pattern="macos-x86_64.dmg"
-                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-x86_64.dmg"
-                                rel="noopener">DMG Intel <span aria-hidden="true">↓</span></a>
-                            <a class="pill-button pill-secondary asset-link"
-                                data-asset-pattern="macos-arm64.zip"
-                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-arm64.zip"
-                                rel="noopener">ZIP arm64 <span aria-hidden="true">↓</span></a>
-                            <a class="pill-button pill-secondary asset-link"
-                                data-asset-pattern="macos-x86_64.zip"
-                                href="https://github.com/PixoGlace/pixoCrop/releases/latest/download/pixoCrop-macos-x86_64.zip"
-                                rel="noopener">ZIP Intel <span aria-hidden="true">↓</span></a>
-                        </div>
-                    </article>
-                </div>
             </section>
 
             <section class="legal-grid" id="proteger"
@@ -330,6 +303,36 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
                     </div>
                 </div>
             </section>
+
+            <section class="install-panel" id="developpeurs"
+                aria-labelledby="install-title">
+                <div class="terminal-card"
+                    aria-label="Commandes pour les contributeurs">
+                    <div class="terminal-bar"
+                        aria-hidden="true"><span></span><span></span><span></span></div>
+                    <pre><code>git clone https://github.com/PixoGlace/pixoCrop.git
+cd pixoCrop
+make dev
+make run</code></pre>
+                    <pre><code>make test
+make release-macos  # ou windows / linux</code></pre>
+                </div>
+                <div class="install-copy">
+                    <p class="kicker" data-i18n="install.kicker">Pour les contributeurs</p>
+                    <h2 id="install-title" data-i18n="install.title">Développer et générer PixoCrop.</h2>
+                    <p data-i18n-html="install.copy">Cette section concerne le code source. Pour utiliser
+                        simplement l’application, choisissez un installateur dans la section de téléchargement.</p>
+                    <div class="actions">
+                        <a class="pill-button pill-primary"
+                            href="https://github.com/PixoGlace/pixoCrop"
+                            rel="noopener" data-i18n="install.source">Code source</a>
+                        <a class="pill-button pill-secondary"
+                            href="https://github.com/PixoGlace/pixoCrop/releases"
+                            rel="noopener"><span data-i18n="install.releases">Releases</span> <span
+                                aria-hidden="true">↗</span></a>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <footer>
@@ -342,9 +345,10 @@ tar -xzf release/pixoCrop-linux-x86_64.tar.gz
                             PixoGlace.</small></span>
                 </a>
                 <nav aria-label="Navigation de pied de page">
-                    <a href="#fonctionnalites" data-i18n="nav.features">Fonctions</a>
-                    <a href="#installer" data-i18n="nav.install">Installer</a>
                     <a href="#telecharger" data-i18n="nav.download">Telecharger</a>
+                    <a href="#fonctionnalites" data-i18n="nav.features">Fonctions</a>
+                    <a href="#guide" data-i18n="nav.guide">Guide</a>
+                    <a href="#developpeurs" data-i18n="nav.developers">Développeurs</a>
                     <a href="https://github.com/PixoGlace"
                         rel="me noopener">PixoGlace ↗</a>
                 </nav>
