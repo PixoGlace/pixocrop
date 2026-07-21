@@ -167,6 +167,8 @@ jobs:
           plutil -replace CFBundleDisplayName -string "pixoCrop" "dist/pixoCrop.app/Contents/Info.plist"
           plutil -replace CFBundleShortVersionString -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
           plutil -replace CFBundleVersion -string "${app_version}" "dist/pixoCrop.app/Contents/Info.plist"
+          codesign --force --sign - --timestamp=none "dist/pixoCrop.app"
+          codesign --verify --deep --strict --verbose=2 "dist/pixoCrop.app"
 
       - name: Package dev binaries
         run: |
@@ -191,6 +193,7 @@ jobs:
             --no-internet-enable \
             "release/pixoCrop-macos-${{ matrix.arch }}.dmg" \
             "build/dmg-stage"
+          hdiutil verify "release/pixoCrop-macos-${{ matrix.arch }}.dmg"
 
       - name: Upload macOS portable dev binary
         uses: actions/upload-artifact@v4

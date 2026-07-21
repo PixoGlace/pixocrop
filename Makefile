@@ -107,6 +107,8 @@ ifeq ($(PLATFORM),macos)
 	plutil -replace CFBundleDisplayName -string "$(APP)" "$(DIST_ARTIFACT)/Contents/Info.plist"
 	plutil -replace CFBundleShortVersionString -string "$(APP_VERSION)" "$(DIST_ARTIFACT)/Contents/Info.plist"
 	plutil -replace CFBundleVersion -string "$(APP_VERSION)" "$(DIST_ARTIFACT)/Contents/Info.plist"
+	codesign --force --sign - --timestamp=none "$(DIST_ARTIFACT)"
+	codesign --verify --deep --strict --verbose=2 "$(DIST_ARTIFACT)"
 endif
 
 packaging-assets:
@@ -156,6 +158,7 @@ package-macos: packaging-assets
 		ln -sfn /Applications "$(DMG_STAGE)/Applications"; \
 		hdiutil create -volname "$(DMG_VOLUME_NAME)" -srcfolder "$(DMG_STAGE)" -ov -format UDZO "$(DMG_FILE)"; \
 	fi
+	hdiutil verify "$(DMG_FILE)"
 	@echo "DMG cree: $(DMG_FILE)"
 
 package-windows: packaging-assets
