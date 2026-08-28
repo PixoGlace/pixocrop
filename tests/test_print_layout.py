@@ -89,6 +89,21 @@ def test_pixel_limit_caps_memory_with_preserved_ratio() -> None:
     assert plan.estimated_bytes <= 8_000_000
 
 
+def test_no_fit_preserves_source_physical_size_at_100_percent() -> None:
+    plan = plan_render(
+        source_width_pt=72,
+        source_height_pt=144,
+        paper_width_mm=100,
+        paper_height_mm=150,
+        printable_rect=PixelRect(0, 0, 1181, 1772),
+        requested_dpi=300,
+        fit_to_page=False,
+    )
+
+    assert (plan.target.width, plan.target.height) == (300, 600)
+    assert plan.scale_factor == pytest.approx(1.0, abs=0.01)
+
+
 def test_target_rectangle_never_crops_after_zoom() -> None:
     printable = PixelRect(20, 30, 700, 500)
     target = compute_target_rect(

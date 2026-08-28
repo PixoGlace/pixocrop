@@ -152,9 +152,11 @@ def plan_render(
 
     source_width_mm = source_width_pt / POINTS_PER_INCH * MM_PER_INCH
     source_height_mm = source_height_pt / POINTS_PER_INCH * MM_PER_INCH
+    source_width_px = source_width_pt / POINTS_PER_INCH * requested_dpi
+    source_height_px = source_height_pt / POINTS_PER_INCH * requested_dpi
     target = compute_target_rect(
-        source_width_pt,
-        source_height_pt,
+        source_width_px,
+        source_height_px,
         printable_rect,
         fit_to_page=fit_to_page,
         zoom_factor=zoom_factor,

@@ -1,3 +1,4 @@
+from PySide6.QtCore import QSizeF
 from PySide6.QtGui import QPageLayout, QPageSize
 import pytest
 
@@ -63,6 +64,22 @@ def test_driver_announced_size_is_preferred() -> None:
     requested = PaperSpec("a6-like", "A6 compatible", size.width(), size.height())
 
     assert find_supported_page_size([announced], requested) == announced
+
+
+def test_landscape_driver_size_is_not_inverted_twice() -> None:
+    announced = QPageSize(
+        QSizeF(70, 50),
+        QPageSize.Unit.Millimeter,
+        "Driver 70 x 50",
+        QPageSize.SizeMatchPolicy.ExactMatch,
+    )
+    layout = build_page_layout(
+        PaperSpec("70x50", "70 x 50", 70, 50),
+        PageOrientation.LANDSCAPE,
+        supported_page_sizes=[announced],
+    )
+
+    assert layout_size_mm(layout) == pytest.approx((70, 50), abs=0.1)
 
 
 def test_accepted_driver_settings_are_reported() -> None:

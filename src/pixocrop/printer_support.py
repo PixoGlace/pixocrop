@@ -53,6 +53,20 @@ def normalized_qpage_size(paper: PaperSpec) -> QPageSize:
     )
 
 
+def portrait_normalized_page_size(page_size: QPageSize) -> QPageSize:
+    size = page_size.size(QPageSize.Unit.Millimeter)
+    width = float(size.width())
+    height = float(size.height())
+    if width <= height:
+        return page_size
+    return QPageSize(
+        QSizeF(height, width),
+        QPageSize.Unit.Millimeter,
+        page_size.name(),
+        QPageSize.SizeMatchPolicy.ExactMatch,
+    )
+
+
 def layout_size_mm(layout: QPageLayout) -> tuple[float, float]:
     rect = layout.fullRect(QPageLayout.Unit.Millimeter)
     return float(rect.width()), float(rect.height())
@@ -101,6 +115,8 @@ def build_page_layout(
         page_size = find_supported_page_size(supported_page_sizes, paper)
     if page_size is None:
         page_size = normalized_qpage_size(paper)
+    else:
+        page_size = portrait_normalized_page_size(page_size)
     left, top, right, bottom = margins_mm
     return QPageLayout(
         page_size,
