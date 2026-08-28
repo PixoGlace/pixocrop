@@ -1,6 +1,6 @@
 # pixoCrop
 
-Application Python avec interface graphique pour detecter un bordereau d'expedition dans un PDF, recadrer uniquement cette region, puis lancer l'impression via le lecteur PDF/systeme.
+Application Python avec interface graphique pour detecter un bordereau d'expedition dans un PDF, recadrer uniquement cette region, puis l'imprimer avec les parametres du pilote selectionne.
 
 Projet maintenu par PixoGlace.
 
@@ -60,7 +60,34 @@ telechargement.
 
 Dans l'aperçu, le rectangle bleu transparent represente la zone qui sera imprimee. `Ctrl + molette` permet de zoomer.
 
-Le bouton `Imprimer` ouvre une fenetre interne avec l'aperçu de la zone selectionnee, le choix de l'imprimante, les copies, l'orientation, le format papier, la qualite, le mode couleur, le recto-verso et l'adaptation a la page.
+Le bouton `Imprimer` ouvre une fenetre interne avec l'aperçu de la zone selectionnee, le choix de l'imprimante, les copies, l'orientation, le format papier, la qualite, le mode couleur, le recto-verso et l'adaptation a la page. L'aperçu indique aussi les dimensions de la zone et du papier, la resolution et l'echelle appliquee.
+
+### Impression thermique
+
+Les formats thermiques proposes sont :
+
+- 70 x 50 mm ;
+- 100 x 150 mm ;
+- 4 x 6 pouces ;
+- 7 x 5 pouces.
+
+La qualite standard de 300 dpi est selectionnee par defaut. Les formats declares par le pilote sont reutilises lorsqu'ils correspondent au format demande. Si le pilote refuse le papier, l'orientation ou la resolution, pixoCrop affiche le reglage demande et celui reellement accepte avant de poursuivre.
+
+L'option 600 dpi reste disponible. Pour eviter une consommation excessive de memoire, le rendu est calcule directement pour la taille de sortie et limite a 12 millions de pixels par defaut. Cette limite peut etre adaptee avant le lancement :
+
+```bash
+PIXO_MAX_RENDER_PIXELS=16000000 make run
+```
+
+Le reglage `Marge` de la fenetre principale reste modifiable avant l'impression. Il agrandit la zone detectee sans modifier le PDF original.
+
+### Detection et correction
+
+La detection conserve les regles propres aux transporteurs, puis analyse aussi les cadres vectoriels, les images, la densite du contenu, les codes-barres et les marges blanches. Plusieurs zones candidates peuvent etre classees sans OCR, IA ni connexion reseau. Une zone de contenu generique n'est utilisee qu'en dernier recours.
+
+La selection reste toujours editable : dessinez un nouveau rectangle, deplacez-le ou ajustez chacun de ses bords et coins avec la souris.
+
+Les choix techniques et la note de migration sur l'orientation sont detailles dans [docs/technical-printing.md](docs/technical-printing.md).
 
 ## Build executable
 
@@ -91,6 +118,15 @@ Le design des paquets est genere au moment du packaging par
 
 La creation du DMG utilise `create-dmg` si l'outil est disponible, puis revient
 sur `hdiutil` en secours. L'installateur Windows utilise Inno Setup.
+
+## Tests
+
+```bash
+make test
+make compile
+```
+
+Les tests couvrent la detection sans texte, les etiquettes vectorielles ou composees d'images, les pages blanches, plusieurs candidats, les formats thermiques, les orientations, les refus simules de pilote, la limite memoire et l'impression virtuelle vers PDF. Le fixture local `TikTokSeller.pdf` est teste automatiquement lorsqu'il est disponible, sans etre modifie ni copie.
 
 ## CI/CD et releases GitHub
 

@@ -129,6 +129,11 @@ def build_stylesheet(theme: str) -> str:
             border: 1px solid {colors.border};
             border-radius: 8px;
         }}
+        QLabel#printPreviewDetails {{
+            color: {colors.secondary};
+            font-size: 12px;
+            padding: 2px 8px;
+        }}
         QFrame#cropHint {{
             background: {colors.panel_alt};
             border: 1px solid {colors.accent};

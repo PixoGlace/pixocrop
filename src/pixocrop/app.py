@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import re
 import sys
 import threading
@@ -9,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 import fitz
-from PySide6.QtCore import QEvent, QMarginsF, QObject, QPointF, QRect, QRectF, QSettings, QSize, QSizeF, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QEvent, QObject, QPointF, QRect, QRectF, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPen, QPixmap
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (
@@ -44,8 +46,24 @@ from PySide6.QtWidgets import (
 
 from pixocrop.detection import PdfRect, detect_all_pages
 from pixocrop.pdf_ops import crop_pdf
-from pixocrop.config import APP_NAME, DONATION_TEXT, DONATION_URL, KOFI_URL, PROJECT_LICENSE, PROJECT_URL, UPDATE_CHECK_URL, VERSION
+from pixocrop.config import APP_NAME, DONATION_TEXT, DONATION_URL, KOFI_URL, MAX_RENDER_PIXELS, PROJECT_LICENSE, PROJECT_URL, UPDATE_CHECK_URL, VERSION
 from pixocrop.language_config import DEFAULT_LANGUAGE, LANGUAGES, is_rtl, translate
+from pixocrop.print_layout import (
+    COMMON_THERMAL_PAPERS,
+    PageOrientation,
+    PaperSpec,
+    PixelRect,
+    compute_target_rect,
+    oriented_paper_size_mm,
+    plan_render,
+    resolve_orientation,
+)
+from pixocrop.printer_support import (
+    apply_printer_settings,
+    build_page_layout,
+    page_orientation,
+    paper_spec_from_qpage_size,
+)
 from pixocrop.theme import (
     PIXO_AMBER,
     PIXO_TEAL,
@@ -54,6 +72,40 @@ from pixocrop.theme import (
 )
 
 POINTS_PER_MM = 72 / 25.4
+LOGGER = logging.getLogger("pixocrop.app")
+
+
+def configure_logging() -> Path | None:
+    logger = logging.getLogger("pixocrop")
+    if logger.handlers:
+        return None
+
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    try:
+        log_directory = Path(
+            QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.AppLocalDataLocation
+            )
+        )
+        log_directory.mkdir(parents=True, exist_ok=True)
+        log_path = log_directory / "pixocrop.log"
+        handler = RotatingFileHandler(
+            log_path,
+            maxBytes=1_000_000,
+            backupCount=2,
+            encoding="utf-8",
+        )
+    except OSError:
+        log_path = None
+        handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return log_path
 
 
 def app_root() -> Path:
@@ -675,7 +727,6 @@ class PrintOptionsDialog(QDialog):
     PREVIEW_ZOOM = 2.0
     PREVIEW_CANVAS_HEIGHT = 1000
     PREVIEW_MARGIN = 28
-    PREVIEW_PRINTABLE_MARGIN = 36
 
     ORIENTATION_AUTO = 0
     ORIENTATION_PORTRAIT = 1
@@ -722,9 +773,22 @@ class PrintOptionsDialog(QDialog):
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumSize(360, 360)
         self.preview_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Ignored,
         )
+        self.preview_details = QLabel()
+        self.preview_details.setObjectName("printPreviewDetails")
+        self.preview_details.setWordWrap(True)
+        self.preview_details.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        preview_layout = QVBoxLayout()
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(8)
+        preview_layout.addWidget(self.preview_label, 1)
+        preview_layout.addWidget(self.preview_details)
+
+        preview_widget = QWidget()
+        preview_widget.setLayout(preview_layout)
 
         self.printer_combo = self._create_printer_combo()
         self.page_combo = self._create_page_combo()
@@ -776,7 +840,7 @@ class PrintOptionsDialog(QDialog):
         options_widget.setMinimumWidth(330)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.preview_label)
+        splitter.addWidget(preview_widget)
         splitter.addWidget(options_widget)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
@@ -866,16 +930,17 @@ class PrintOptionsDialog(QDialog):
                 combo.addItem(label, page_size)
 
         for label, value in (
-            ("A4", QPageSize.PageSizeId.A4),
-            ("A5", QPageSize.PageSizeId.A5),
-            ("Letter", QPageSize.PageSizeId.Letter),
-            ("10 × 15 cm", QPageSize.PageSizeId.A6),
-            ("Thermique 7 × 5 cm", ("custom_mm", 70.0, 50.0, "Thermique 7 x 5 cm")),
-            ("Thermique 7 × 5 in", ("custom_in", 7.0, 5.0, "Thermique 7 x 5 in")),
+            ("A4", QPageSize(QPageSize.PageSizeId.A4)),
+            ("A5", QPageSize(QPageSize.PageSizeId.A5)),
+            ("Letter", QPageSize(QPageSize.PageSizeId.Letter)),
+            ("10 × 15 cm", QPageSize(QPageSize.PageSizeId.A6)),
         ):
             if label not in seen:
                 combo.addItem(label, value)
                 seen.add(label)
+
+        for paper in COMMON_THERMAL_PAPERS:
+            combo.addItem(f"{self.t('thermal_paper')} {paper.name}", paper)
 
         if current_name:
             index = combo.findText(current_name)
@@ -891,6 +956,7 @@ class PrintOptionsDialog(QDialog):
         combo.addItem(self.t("quality_draft"), 150)
         combo.addItem(self.t("quality_standard"), 300)
         combo.addItem(self.t("quality_high"), 600)
+        combo.setCurrentIndex(combo.findData(300))
         return combo
 
     def _create_duplex_combo(self) -> QComboBox:
@@ -1017,6 +1083,7 @@ class PrintOptionsDialog(QDialog):
     def update_preview(self) -> None:
         if not self.rects:
             self.preview_label.setText(self.t("empty_preview"))
+            self.preview_details.clear()
             self.preview_label.setPixmap(QPixmap())
             self._preview_image = None
             return
@@ -1027,6 +1094,7 @@ class PrintOptionsDialog(QDialog):
             self._preview_image = self.render_print_preview(page_index)
         except Exception as error:
             self.preview_label.setText(self.t("preview_error", error=error))
+            self.preview_details.clear()
             self.preview_label.setPixmap(QPixmap())
             self._preview_image = None
             return
@@ -1074,28 +1142,21 @@ class PrintOptionsDialog(QDialog):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         paper_rect = self._paper_rect(canvas)
-        printable_rect = paper_rect.adjusted(
-            self.PREVIEW_PRINTABLE_MARGIN,
-            self.PREVIEW_PRINTABLE_MARGIN,
-            -self.PREVIEW_PRINTABLE_MARGIN,
-            -self.PREVIEW_PRINTABLE_MARGIN,
-        )
+        printable_rect = self._preview_printable_rect(paper_rect)
 
         painter.fillRect(paper_rect, Qt.GlobalColor.white)
         painter.setPen(QPen(QColor(190, 190, 190), 2))
         painter.drawRect(paper_rect)
 
         target_rect = self._compute_image_target_rect(
-            clip_image=clip_image,
             source_rect=rect,
             paper_rect=paper_rect,
             printable_rect=printable_rect,
-            page_width=page_width,
-            page_height=page_height,
         )
 
         painter.drawImage(target_rect, clip_image)
         painter.end()
+        self._update_preview_details(rect)
 
         return canvas
 
@@ -1125,50 +1186,81 @@ class PrintOptionsDialog(QDialog):
     def _compute_image_target_rect(
         self,
         *,
-        clip_image: QImage,
         source_rect: PdfRect,
         paper_rect: QRect,
         printable_rect: QRect,
-        page_width: float,
-        page_height: float,
     ) -> QRect:
-        if self.fit_to_page():
-            scale = min(
-                printable_rect.width() / clip_image.width(),
-                printable_rect.height() / clip_image.height(),
-            )
-            image_width = max(1, int(clip_image.width() * scale))
-            image_height = max(1, int(clip_image.height() * scale))
-        else:
-            source_width = max(1.0, float(source_rect.x1 - source_rect.x0))
-            source_height = max(1.0, float(source_rect.y1 - source_rect.y0))
-
-            image_width = max(1, int(source_width / page_width * paper_rect.width()))
-            image_height = max(
-                1, int(source_height / page_height * paper_rect.height())
-            )
-
-            if (
-                image_width > printable_rect.width()
-                or image_height > printable_rect.height()
-            ):
-                scale = min(
-                    printable_rect.width() / image_width,
-                    printable_rect.height() / image_height,
-                )
-                image_width = max(1, int(image_width * scale))
-            image_height = max(1, int(image_height * scale))
-
-        zoom = self.zoom_factor()
-        image_width = max(1, int(image_width * zoom))
-        image_height = max(1, int(image_height * zoom))
-
-        return QRect(
-            printable_rect.x() + (printable_rect.width() - image_width) // 2,
-            printable_rect.y() + (printable_rect.height() - image_height) // 2,
-            image_width,
-            image_height,
+        paper_width_mm, paper_height_mm = self._paper_dimensions_mm()
+        source_width = (
+            source_rect.width / POINTS_PER_MM * paper_rect.width() / paper_width_mm
         )
+        source_height = (
+            source_rect.height / POINTS_PER_MM * paper_rect.height() / paper_height_mm
+        )
+        target = compute_target_rect(
+            source_width,
+            source_height,
+            PixelRect(
+                printable_rect.x(),
+                printable_rect.y(),
+                printable_rect.width(),
+                printable_rect.height(),
+            ),
+            fit_to_page=self.fit_to_page(),
+            zoom_factor=self.zoom_factor(),
+        )
+        return QRect(target.x, target.y, target.width, target.height)
+
+    def _preview_printable_rect(self, paper_rect: QRect) -> QRect:
+        paper_width_mm, paper_height_mm = self._paper_dimensions_mm()
+        left, top, right, bottom = self._effective_margins_mm()
+        x_scale = paper_rect.width() / max(paper_width_mm, 1e-6)
+        y_scale = paper_rect.height() / max(paper_height_mm, 1e-6)
+        printable = paper_rect.adjusted(
+            round(left * x_scale),
+            round(top * y_scale),
+            -round(right * x_scale),
+            -round(bottom * y_scale),
+        )
+        return printable if not printable.isEmpty() else paper_rect
+
+    def _update_preview_details(self, rect: PdfRect) -> None:
+        paper_width_mm, paper_height_mm = self._paper_dimensions_mm()
+        dpi = max(1, self.effective_resolution())
+        left, top, right, bottom = self._effective_margins_mm()
+        printable = PixelRect(
+            round(left / 25.4 * dpi),
+            round(top / 25.4 * dpi),
+            max(1, round((paper_width_mm - left - right) / 25.4 * dpi)),
+            max(1, round((paper_height_mm - top - bottom) / 25.4 * dpi)),
+        )
+        plan = plan_render(
+            source_width_pt=rect.width,
+            source_height_pt=rect.height,
+            paper_width_mm=paper_width_mm,
+            paper_height_mm=paper_height_mm,
+            printable_rect=printable,
+            requested_dpi=dpi,
+            fit_to_page=self.fit_to_page(),
+            zoom_factor=self.zoom_factor(),
+            max_render_pixels=MAX_RENDER_PIXELS,
+        )
+        details = self.t(
+            "print_preview_details",
+            source=f"{plan.source_width_mm:.1f} × {plan.source_height_mm:.1f}",
+            paper=f"{paper_width_mm:.1f} × {paper_height_mm:.1f}",
+            dpi=dpi,
+            scale=f"{plan.scale_factor * 100:.0f}",
+        )
+        warning_keys = {
+            "large-source-reduction": "print_warning_large_source",
+            "high-resolution-memory": "print_warning_high_resolution",
+            "pixel-limit-applied": "print_warning_pixel_limit",
+        }
+        warnings = [self.t(warning_keys[warning]) for warning in plan.warnings]
+        if warnings:
+            details += "\n" + "\n".join(warnings)
+        self.preview_details.setText(details)
 
     # ---------------------------------------------------------------------
     # Icons
@@ -1261,18 +1353,28 @@ class PrintOptionsDialog(QDialog):
         return value
 
     def orientation(self) -> QPageLayout.Orientation | None:
-        selected_orientation = self.orientation_group.checkedId()
-
-        if selected_orientation == self.ORIENTATION_DEFAULT:
+        orientation = self.selected_page_orientation()
+        if self.orientation_group.checkedId() == self.ORIENTATION_DEFAULT:
             return None
-
-        if selected_orientation == self.ORIENTATION_LANDSCAPE:
+        if orientation == PageOrientation.LANDSCAPE:
             return QPageLayout.Orientation.Landscape
+        return QPageLayout.Orientation.Portrait
 
-        if selected_orientation == self.ORIENTATION_PORTRAIT:
-            return QPageLayout.Orientation.Portrait
+    def selected_page_orientation(self) -> PageOrientation:
+        selected = self.orientation_group.checkedId()
+        if selected == self.ORIENTATION_DEFAULT:
+            return page_orientation(self.default_printer().pageLayout().orientation())
+        if selected == self.ORIENTATION_LANDSCAPE:
+            return PageOrientation.LANDSCAPE
+        if selected == self.ORIENTATION_PORTRAIT:
+            return PageOrientation.PORTRAIT
 
-        return self._auto_orientation()
+        rect = self.rects[self._current_preview_page_index()]
+        return resolve_orientation(
+            PageOrientation.AUTO,
+            source_width=rect.width,
+            source_height=rect.height,
+        )
 
     def duplex_mode(self) -> QPrinter.DuplexMode | None:
         value = self.duplex_combo.currentData()
@@ -1286,14 +1388,30 @@ class PrintOptionsDialog(QDialog):
             return None
         if isinstance(value, QPageSize):
             return value
-        if isinstance(value, tuple):
-            kind, width, height, name = value
-            unit = QPageSize.Unit.Millimeter if kind == "custom_mm" else QPageSize.Unit.Inch
-            return QPageSize(QSizeF(width, height), unit, name)
-        return QPageSize(value)
+        if isinstance(value, PaperSpec):
+            printer_info = self.selected_printer_info()
+            supported = printer_info.supportedPageSizes() if printer_info else []
+            return build_page_layout(
+                value,
+                self.selected_page_orientation(),
+                supported_page_sizes=supported,
+            ).pageSize()
+        return None
+
+    def selected_paper_spec(self) -> PaperSpec:
+        value = self.paper_size_combo.currentData()
+        if isinstance(value, PaperSpec):
+            return value
+        if isinstance(value, QPageSize) and value.isValid():
+            return paper_spec_from_qpage_size(value, key=value.key() or "driver")
+
+        page_size = self.default_printer().pageLayout().pageSize()
+        if not page_size.isValid():
+            page_size = QPageSize(QPageSize.PageSizeId.A4)
+        return paper_spec_from_qpage_size(page_size, key="printer-default")
 
     def is_thermal_paper(self) -> bool:
-        return isinstance(self.paper_size_combo.currentData(), tuple)
+        return isinstance(self.paper_size_combo.currentData(), PaperSpec)
 
     def resolution(self) -> int | None:
         value = self.resolution_combo.currentData()
@@ -1325,10 +1443,9 @@ class PrintOptionsDialog(QDialog):
         return self.color_mode() or self.default_printer().colorMode()
 
     def effective_orientation(self) -> QPageLayout.Orientation:
-        orientation = self.orientation()
-        if orientation is not None:
-            return orientation
-        return self.default_printer().pageLayout().orientation()
+        if self.selected_page_orientation() == PageOrientation.LANDSCAPE:
+            return QPageLayout.Orientation.Landscape
+        return QPageLayout.Orientation.Portrait
 
     def effective_paper_size(self) -> QPageSize:
         paper_size = self.paper_size()
@@ -1344,7 +1461,7 @@ class PrintOptionsDialog(QDialog):
         resolution = self.resolution()
         if resolution is not None:
             return resolution
-        return self.default_printer().resolution()
+        return max(1, self.default_printer().resolution())
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -1362,31 +1479,26 @@ class PrintOptionsDialog(QDialog):
 
         return max(0, min(page_index, len(self.rects) - 1))
 
-    def _auto_orientation(self) -> QPageLayout.Orientation:
-        pages = self.selected_pages()
-
-        if not pages:
-            return QPageLayout.Orientation.Portrait
-
-        rect = self.rects[pages[0]]
-        width = float(rect.x1 - rect.x0)
-        height = float(rect.y1 - rect.y0)
-
-        if width > height:
-            return QPageLayout.Orientation.Landscape
-
-        return QPageLayout.Orientation.Portrait
-
     def _paper_dimensions_points(self) -> tuple[float, float]:
-        page_size = self.effective_paper_size().size(QPageSize.Unit.Point)
+        width_mm, height_mm = self._paper_dimensions_mm()
+        return width_mm * POINTS_PER_MM, height_mm * POINTS_PER_MM
 
-        width = float(page_size.width())
-        height = float(page_size.height())
+    def _paper_dimensions_mm(self) -> tuple[float, float]:
+        rect = self.rects[self._current_preview_page_index()]
+        return oriented_paper_size_mm(
+            self.selected_paper_spec(),
+            self.selected_page_orientation(),
+            source_width=rect.width,
+            source_height=rect.height,
+        )
 
-        if self.effective_orientation() == QPageLayout.Orientation.Landscape:
-            return max(width, height), min(width, height)
-
-        return min(width, height), max(width, height)
+    def _effective_margins_mm(self) -> tuple[float, float, float, float]:
+        if self.is_thermal_paper():
+            return 0.0, 0.0, 0.0, 0.0
+        margins = self.default_printer().pageLayout().margins(
+            QPageLayout.Unit.Millimeter
+        )
+        return margins.left(), margins.top(), margins.right(), margins.bottom()
 
 
 class MainWindow(QMainWindow):
@@ -2110,16 +2222,37 @@ class MainWindow(QMainWindow):
             return
         self.print_with_options(dialog)
 
-    def render_clip_image(self, page_index: int, rect: PdfRect, *, zoom: float = 4.0) -> QImage:
+    def render_clip_image(
+        self,
+        page_index: int,
+        rect: PdfRect,
+        *,
+        zoom: float = 4.0,
+        target_width_px: int | None = None,
+        target_height_px: int | None = None,
+    ) -> QImage:
         if self.document is None:
             return QImage()
+        if target_width_px is not None and target_height_px is not None:
+            zoom = min(
+                target_width_px / max(rect.width, 1e-6),
+                target_height_px / max(rect.height, 1e-6),
+            )
+        zoom = max(0.05, zoom)
         page = self.document[page_index]
         pixmap = page.get_pixmap(
             matrix=fitz.Matrix(zoom, zoom),
+            colorspace=fitz.csRGB,
             alpha=False,
             clip=rect.to_fitz(),
         )
-        return QImage.fromData(pixmap.tobytes("png"))
+        return QImage(
+            pixmap.samples,
+            pixmap.width,
+            pixmap.height,
+            pixmap.stride,
+            QImage.Format.Format_RGB888,
+        ).copy()
 
     def print_with_options(self, options: PrintOptionsDialog) -> None:
         printer_info = options.selected_printer_info()
@@ -2135,27 +2268,7 @@ class MainWindow(QMainWindow):
         if color_mode is not None:
             printer.setColorMode(color_mode)
 
-        paper_size = options.paper_size()
-        orientation = options.orientation()
-        if paper_size is not None or orientation is not None or options.is_thermal_paper():
-            current_layout = printer.pageLayout()
-            margins = (
-                QMarginsF(0, 0, 0, 0)
-                if options.is_thermal_paper()
-                else current_layout.margins(QPageLayout.Unit.Millimeter)
-            )
-            page_layout = QPageLayout(
-                paper_size or current_layout.pageSize(),
-                orientation or current_layout.orientation(),
-                margins,
-                QPageLayout.Unit.Millimeter,
-            )
-            printer.setPageLayout(page_layout)
-
-        resolution = options.resolution()
-        if resolution is not None:
-            printer.setResolution(resolution)
-
+        default_layout = printer.pageLayout()
         if options.is_thermal_paper():
             printer.setFullPage(True)
             printer.setDuplex(QPrinter.DuplexMode.DuplexNone)
@@ -2163,6 +2276,64 @@ class MainWindow(QMainWindow):
             duplex_mode = options.duplex_mode()
             if duplex_mode is not None:
                 printer.setDuplex(duplex_mode)
+
+        margins = options._effective_margins_mm()
+        supported_sizes = (
+            printer_info.supportedPageSizes() if printer_info is not None else []
+        )
+        requested_layout = build_page_layout(
+            options.selected_paper_spec(),
+            options.selected_page_orientation(),
+            margins_mm=margins,
+            supported_page_sizes=supported_sizes,
+        )
+        settings_result = apply_printer_settings(
+            printer,
+            requested_layout,
+            options.effective_resolution(),
+            fallback_layout=default_layout,
+        )
+        layout_errors = [
+            error for error in settings_result.errors if error != "resolution-refused"
+        ]
+        if layout_errors:
+            error_keys = {
+                "orientation-refused": "print_error_orientation",
+                "paper-size-refused": "print_error_paper",
+                "page-layout-refused": "print_error_layout",
+            }
+            reasons = ", ".join(self.t(error_keys[error]) for error in layout_errors)
+            answer = QMessageBox.warning(
+                self,
+                self.t("print_layout_refused"),
+                self.t(
+                    "print_layout_refused_message",
+                    reason=reasons,
+                    requested=(
+                        f"{settings_result.requested_size_mm[0]:.1f} × "
+                        f"{settings_result.requested_size_mm[1]:.1f} mm"
+                    ),
+                    accepted=(
+                        f"{settings_result.accepted_size_mm[0]:.1f} × "
+                        f"{settings_result.accepted_size_mm[1]:.1f} mm"
+                    ),
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        if not settings_result.resolution_accepted:
+            QMessageBox.warning(
+                self,
+                self.t("print_resolution_changed"),
+                self.t(
+                    "print_resolution_changed_message",
+                    requested=settings_result.requested_dpi,
+                    accepted=settings_result.accepted_dpi,
+                ),
+            )
+
         printer.setDocName(self.pdf_path.stem if self.pdf_path is not None else "pixoCrop")
 
         painter = QPainter()
@@ -2174,12 +2345,14 @@ class MainWindow(QMainWindow):
             )
             return
 
+        painted_pages = 0
+        job_error: str | None = None
+        pages = options.selected_pages()
         try:
-            painted_pages = 0
-            pages = options.selected_pages()
             for output_index, page_index in enumerate(pages):
                 if output_index > 0:
                     if not printer.newPage():
+                        job_error = self.t("print_new_page_failed", page=output_index + 1)
                         break
                 if self.paint_print_page(
                     painter,
@@ -2192,7 +2365,14 @@ class MainWindow(QMainWindow):
                 ):
                     painted_pages += 1
         finally:
-            painter.end()
+            if not painter.end() and job_error is None:
+                job_error = self.t("print_end_failed")
+
+        if job_error is not None:
+            LOGGER.error("print job failed: %s", job_error)
+            QMessageBox.critical(self, self.t("print_failed"), job_error)
+            self.status.showMessage(job_error)
+            return
 
         if painted_pages == 0:
             QMessageBox.critical(
@@ -2225,40 +2405,63 @@ class MainWindow(QMainWindow):
         color_mode: QPrinter.ColorMode,
         zoom_factor: float,
     ) -> bool:
-        image = self.render_clip_image(page_index, rect, zoom=printer.resolution() / 72)
+        page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+        if page_rect.isEmpty():
+            LOGGER.error("empty printable rectangle for page %s", page_index + 1)
+            return False
+
+        paper_rect_mm = printer.pageLayout().fullRect(QPageLayout.Unit.Millimeter)
+        dpi = max(1, int(printer.resolution()))
+        plan = plan_render(
+            source_width_pt=rect.width,
+            source_height_pt=rect.height,
+            paper_width_mm=float(paper_rect_mm.width()),
+            paper_height_mm=float(paper_rect_mm.height()),
+            printable_rect=PixelRect(
+                page_rect.x(),
+                page_rect.y(),
+                page_rect.width(),
+                page_rect.height(),
+            ),
+            requested_dpi=dpi,
+            fit_to_page=fit_to_page,
+            zoom_factor=zoom_factor,
+            max_render_pixels=MAX_RENDER_PIXELS,
+        )
+        image = self.render_clip_image(
+            page_index,
+            rect,
+            target_width_px=plan.render_width_px,
+            target_height_px=plan.render_height_px,
+        )
         if image.isNull():
+            LOGGER.error("empty rendered image for page %s", page_index + 1)
             return False
 
         if color_mode == QPrinter.ColorMode.GrayScale:
             image = image.convertToFormat(QImage.Format.Format_Grayscale8)
 
-        page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
-        if page_rect.isEmpty():
-            return False
-
-        if fit_to_page:
-            scale = min(
-                page_rect.width() / image.width(),
-                page_rect.height() / image.height(),
-            )
-            image_width = max(1, int(image.width() * scale))
-            image_height = max(1, int(image.height() * scale))
-        else:
-            image_width = min(image.width(), page_rect.width())
-            image_height = min(image.height(), page_rect.height())
-
-        image_width = max(1, int(image_width * zoom_factor))
-        image_height = max(1, int(image_height * zoom_factor))
-
         target_rect = QRect(
-            page_rect.x() + (page_rect.width() - image_width) // 2,
-            page_rect.y() + (page_rect.height() - image_height) // 2,
-            image_width,
-            image_height,
+            plan.target.x,
+            plan.target.y,
+            plan.target.width,
+            plan.target.height,
+        )
+        LOGGER.info(
+            "render page=%s target=%sx%s render=%sx%s dpi=%s memory_mb=%.1f warnings=%s",
+            page_index + 1,
+            plan.target.width,
+            plan.target.height,
+            plan.render_width_px,
+            plan.render_height_px,
+            dpi,
+            plan.estimated_bytes / (1024 * 1024),
+            plan.warnings,
         )
 
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.drawImage(target_rect, image)
+        del image
         return True
 
     def _candidate_asset_directories(self) -> list[Path]:
@@ -2433,6 +2636,7 @@ def main() -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
     app.setWindowIcon(themed_icon())
+    configure_logging()
     window = MainWindow()
     window.show()
     window._refresh_theme_assets_after_show()
